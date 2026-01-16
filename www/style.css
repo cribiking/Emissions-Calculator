@@ -1,0 +1,60 @@
+/* --- Estilo General y Fondo --- */
+body, .content-wrapper, .right-side {
+    background-color: #f4f7f9 !important;
+}
+
+/* --- Barra de Navegación (Tabs superiores) --- */
+.nav-tabs {
+    border-bottom: 2px solid #e0e0e0;
+    background: white;
+}
+
+.nav-tabs > li > a {
+    color: #2c3e50 !important;
+    font-weight: 500;
+    border: none !important;
+}
+
+.nav-tabs > li.active > a {
+    color: #00a651 !important; /* Verde de la imagen */
+    border-bottom: 3px solid #00a651 !important;
+    background-color: transparent !important;
+}
+
+/* --- Sidebar y File Inputs --- */
+.main-sidebar {
+    background-color: #ffffff !important;
+    border-right: 1px solid #dee2e6;
+}
+
+/* Personalizar la apariencia de los inputs de archivos */
+.shiny-input-container {
+    padding: 10px;
+}
+
+.btn-file {
+    background-color: white !important;
+    border: 1px solid #dcdcdc !important;
+    border-radius: 8px !important;
+    color: #333 !important;
+    width: 100%;
+    text-align: center;
+    margin-top: 5px;
+}
+
+.btn-file:hover {
+    border-color: #00a651 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Ocultar la barra de progreso de carga si quieres algo más limpio */
+.progress {
+    height: 4px;
+    margin-top: 10px;
+}
+
+/* Color de los títulos H4 y H5 dentro de la sidebar */
+. h4,h5 {
+    color: #2c3e50 !important; /* Un azul muy oscuro casi negro */
+    font-weight: bold;
+}

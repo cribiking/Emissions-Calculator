@@ -1,95 +1,97 @@
-# ---------------------------
-# UI
-# ---------------------------
-ui <- fluidPage(
-  titlePanel("Dashboard Impactes Ambientals — Solució A vs Solució B (multi-dietes)"),
-  sidebarLayout(
-    sidebarPanel(
-      #On trobo les variables 'file_env' , 'file_diets' , 'file_transport' ?
-      fileInput("file_env", "Dades ambientals (dades_mediambientals.xlsx)", accept = c(".xlsx")),
-      fileInput("file_diets", "Dades dietes (ingredients_Used_xDiet.xlsx)", accept = c(".xlsx")),
-      fileInput("file_transport", "Fitxer transport (transport_impactes.xlsx) - opcional", accept = c(".xlsx")),
+ui <- dashboardPage(
+  header = dashboardHeader(title = "Impactes Ambientals"),
+  
+  sidebar = dashboardSidebar(
+    sidebarMenu(
+      # 1. Inputs de Archivos
+      fileInput("file_env", "Dades ambientals", accept = c(".xlsx")),
+      fileInput("file_diets", "Dades dietes", accept = c(".xlsx")),
+      fileInput("file_transport", "Fitxer transport", accept = c(".xlsx")),
       hr(),
-      #'steps_ui' definit linea 43 server. Mostra la selecció del step a mostrar per solució
+      
+      # 2. Selección de Steps y Filtros
       uiOutput("steps_ui"),
       hr(),
       checkboxGroupInput("impactes_sel", "Impactes a mostrar",
                          choices = c("climate_change", "land_use", "water_use",
                                      "eutrophication", "acidification", "particulate_matter"),
                          selected = c("climate_change", "land_use", "particulate_matter")),
-      checkboxInput("mostrar_per_animal", "Mostrar també per kg que alimenta 1 animal tipus", value = FALSE),
+      checkboxInput("mostrar_per_animal", "Mostrar per animal", value = FALSE),
+      
+      # 3. Panel Condicional
       conditionalPanel(
         condition = "input.mostrar_per_animal == true",
-        helpText("A continuació edita els kg consumits per dieta (taula editable). Per defecte: 1 kg."),
+        helpText("Edita els kg consumits:"),
         DTOutput("tbl_kg_edit")
       ),
       hr(),
-      h4("Reassignar orígens per ingredient"),
-      helpText("Tria un ingredient i escull, del desplegable, un origen disponible per a aquest ingredient."),
+      
+      # 4. Reasignar Orígenes
+      h4("Reassignar orígens"),
       selectInput("sel_ingredient", "Ingredient", choices = NULL),
       uiOutput("sel_origen_ui"),
-      actionButton("apply_override", "Aplica override per ingredient"),
+      actionButton("apply_override", "Aplica override"),
       br(), br(),
-      actionButton("reset_overrides", "Reset all overrides"),
+      actionButton("reset_overrides", "Reset all"),
       hr(),
-      downloadButton("download_summary", "Descarrega resum (CSV)")
-    ),
-    mainPanel(
-      tabsetPanel(
-        ##
-        tabPanel("Visió general",
-                 
-                 h4("Resum de dades carregades"),
-                 DTOutput("tbl_overview"),
-                 hr(),
-                 
-                 h4("Llistat de dietes per cada solució"),
-                 fluidRow(
-                   column(6, h5("Solució A (step seleccionat)"), DTOutput("tbl_dietes_A")),
-                   column(6, h5("Solució B (step seleccionat)"), DTOutput("tbl_dietes_B"))
-                 )
-        ),
-        ##
-        tabPanel("Composició per dieta",
-                 h4("Solució A"),
-                 plotlyOutput("plot_comp_A", height = "600px"),
-                 h4("Solució B"),
-                 plotlyOutput("plot_comp_B", height = "600px")
-        ),
-        ##
-        tabPanel("Impactes per dieta",
-                 plotlyOutput("plot_impacte_A_vs_B", height = "900px")
-        ),
-        ##
-        tabPanel("Contribució per origen",
-                 h5("Solució A"),
-                 plotlyOutput("plot_origen_A", height = "600px"),
-                 h5("Solució B"),
-                 plotlyOutput("plot_origen_B", height = "600px")
-        ),
-        ##
-        tabPanel("Top ingredients per dieta",
-                 selectInput("impacte_top", "Tria impacte per top ingredients:",
-                             choices = c("climate_change", "land_use", "water_use",
-                                         "eutrophication", "acidification", "particulate_matter"),
-                             selected = "climate_change"),
-                 plotlyOutput("plot_topA", height = "600px"),
-                 plotlyOutput("plot_topB", height = "600px")
-        ),
-        ##
-        tabPanel("Mapa d'orígens",
-                 helpText("Mapa amb punts per origen segons orígens utilitzats per les solucions."),
-                 leafletOutput("map_origens", height = "600px")
-        ),
-        ##
-        tabPanel("Distribució per solució",
-                 plotlyOutput("plot_box", height = "700px")
-        ),
-
-        tabPanel("Diferència A - B per dieta",
-                 plotlyOutput("plot_diff", height = "700px")
-        )
+      downloadButton("download_summary", "Descarrega resum")
+    )
+  ), # <-- AQUÍ se cierra el dashboardSidebar
+  
+  body = dashboardBody(
+    
+    # El CSS se carga mejor aquí, al principio del cuerpo
+    #tags$head(
+     # includeCSS("www/style.css")
+    #),
+    
+    tabBox(
+      width = 12,
+      id = "tabset1",
+      
+      tabPanel("Visió general",
+               h4("Resum de dades carregades"),
+               DTOutput("tbl_overview"),
+               hr(),
+               h4("Llistat de dietes"),
+               fluidRow(
+                 column(6, h5("Solució A"), DTOutput("tbl_dietes_A")),
+                 column(6, h5("Solució B"), DTOutput("tbl_dietes_B"))
+               )
+      ),
+      
+      tabPanel("Composició per dieta",
+               h4("Solució A"), plotlyOutput("plot_comp_A", height = "600px"),
+               h4("Solució B"), plotlyOutput("plot_comp_B", height = "600px")
+      ),
+      
+      tabPanel("Impactes per dieta",
+               plotlyOutput("plot_impacte_A_vs_B", height = "900px")
+      ),
+      
+      tabPanel("Contribució per origen",
+               h5("Solució A"), plotlyOutput("plot_origen_A", height = "600px"),
+               h5("Solució B"), plotlyOutput("plot_origen_B", height = "600px")
+      ),
+      
+      tabPanel("Top ingredients",
+               selectInput("impacte_top", "Tria impacte:",
+                           choices = c("climate_change", "land_use", "water_use")),
+               plotlyOutput("plot_topA", height = "600px"),
+               plotlyOutput("plot_topB", height = "600px")
+      ),
+      
+      tabPanel("Mapa d'orígens",
+               leafletOutput("map_origens", height = "600px")
+      ),
+      
+      tabPanel("Distribució",
+               plotlyOutput("plot_box", height = "700px")
+      ),
+      
+      tabPanel("Diferència A - B",
+               plotlyOutput("plot_diff", height = "700px")
       )
     )
-  )
-)
+  ) # <-- AQUÍ se cierra el dashboardBody
+) # <-- AQUÍ se cierra el dashboardPage

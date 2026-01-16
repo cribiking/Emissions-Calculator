@@ -6,6 +6,10 @@ library(janitor)
 library(DT)
 library(plotly)
 library(leaflet)
+library(shinydashboard)
+
+library(bslib)
+library(shinyjs) # Para funcionalidades extra
 
 # ---------------------------
 # Helpers i utilitats
