@@ -85,7 +85,7 @@ ui <- fluidPage(
         tabPanel("Distribució per solució",
                  plotlyOutput("plot_box", height = "700px")
         ),
-        ##
+
         tabPanel("Diferència A - B per dieta",
                  plotlyOutput("plot_diff", height = "700px")
         )
