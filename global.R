@@ -276,15 +276,39 @@ contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE
 
 # Reutilitzem la composició simple (prop per ingredient per dieta)
 plot_composicio <- function(joined_df, ordre_dietes = NULL) {
-  df <- joined_df %>% group_by(diet, ingredient) %>% summarise(prop = sum(prop, na.rm = TRUE), .groups = "drop")
-  if(!is.null(ordre_dietes)) df <- df %>% mutate(diet = factor(diet, levels = ordre_dietes))
-  p <- df %>%
-    ggplot(aes(x = diet, y = prop, fill = ingredient)) +
+  df <- joined_df %>% 
+    group_by(diet, ingredient) %>% 
+    summarise(prop = sum(prop, na.rm = TRUE), .groups = "drop") %>%
+    mutate(label_ing = paste0(ingredient, " (", round(prop, 2), ")"))
+  
+  if(!is.null(ordre_dietes)) 
+    df <- df %>% mutate(diet = factor(diet, levels = ordre_dietes))
+  
+  p <- ggplot(df, aes(x = diet, y = prop, fill = label_ing)) +
     geom_col() +
     coord_flip() +
-    labs(title = "Composició de les dietes (per ingredient)", y = "Proporció", x = "Dieta") +
+    scale_y_continuous(
+      breaks = seq(0, 1, by = 0.25),
+      limits = c(0, 1),
+    ) +
+    labs(
+      title = "Composició de les dietes (per ingredient)",
+      y = "Proporció (%)",
+      x = "Dieta",
+      fill = "Ingredients Utilitzats"
+    ) +
+    guides(fill = guide_legend(nrow = 5, byrow = TRUE)) +
     theme_minimal() +
-    theme(legend.position = "none")
+    theme(legend.position = "bottom",  
+          
+          legend.direction = "horizontal",
+          legend.title = element_text(size = 10, face = "bold"),
+          legend.text = element_text(size = 8),
+          axis.text = element_text(size = 8),
+          axis.title = element_text(size = 10),
+          plot.title = element_text(size = 12))
+  
+  # Convertim a ggplotly
   ggplotly(p, tooltip = c("y", "fill"))
 }
 
@@ -378,3 +402,17 @@ reorder_within <- function(x, by, within, fun = median, sep = "___") {
 scale_x_reordered <- function(...) {
   scale_x_discrete(labels = function(x) gsub("___.*$", "", x))
 }
+
+
+#######
+# Arrays de dades
+#######
+
+
+# 1. Array per creació de ValueBoxes a 'Visio General'
+box_config <- list(
+  list(id = "box_ingredients", title = "Ingredients",        color = "green",  var = "ingredient", source = "env"),
+  list(id = "box_origins",     title = "Origins (Countries)", color = "blue",   var = "origen",     source = "env"),
+  list(id = "box_diets",       title = "Total Diets",        color = "purple", var = "diet",       source = "diets"),
+  list(id = "box_steps",       title = "Steps",              color = "orange", var = "step",       source = "diets")
+)

@@ -29,9 +29,11 @@ ui <- dashboardPage(
       # 4. Reasignar Orígenes
       h4("Reassignar orígens"),
       selectInput("sel_ingredient", "Ingredient", choices = NULL),
+      
       uiOutput("sel_origen_ui"),
       actionButton("apply_override", "Aplica override"),
       br(), br(),
+      
       actionButton("reset_overrides", "Reset all"),
       hr(),
       downloadButton("download_summary", "Descarrega resum")
@@ -40,15 +42,29 @@ ui <- dashboardPage(
   
   body = dashboardBody(
     
+    # El CSS se carga mejor aquí, al principio del cuerpo
+    tags$head(
+      includeCSS("www/style.css")
+    ),
     
-    tabBox(
+    div( style = "padding : 20px;",
+      tabBox(
       width = 12,
       id = "tabset1",
       
       tabPanel("Visió general",
                h4("Resum de dades carregades"),
-               DTOutput("tbl_overview"),
+               
+               # Detecció de ValueBoxes
+               fluidRow(
+                 valueBoxOutput("box_ingredients", width = 3),
+                 valueBoxOutput("box_origins", width = 3),
+                 valueBoxOutput("box_diets", width = 3),
+                 valueBoxOutput("box_steps", width = 3)
+               ),
+               
                hr(),
+               
                h4("Llistat de dietes"),
                fluidRow(
                  column(6, h5("Solució A"), DTOutput("tbl_dietes_A")),
@@ -88,6 +104,7 @@ ui <- dashboardPage(
       tabPanel("Diferència A - B",
                plotlyOutput("plot_diff", height = "700px")
       )
+    )
     )
   ) # <-- AQUÍ se cierra el dashboardBody
 ) # <-- AQUÍ se cierra el dashboardPage

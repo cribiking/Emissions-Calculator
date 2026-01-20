@@ -1,60 +1,73 @@
-/* --- Estilo General y Fondo --- */
-body, .content-wrapper, .right-side {
-    background-color: #f4f7f9 !important;
+/* 1. Fondo global de la página para evitar saltos de blanco a gris */
+html, body, .wrapper, .content-wrapper {
+    background-color: #222d32 !important; /* Gris oscuro del cuerpo */
+    min-height: 100vh !important;
 }
 
-/* --- Barra de Navegación (Tabs superiores) --- */
-.nav-tabs {
-    border-bottom: 2px solid #e0e0e0;
-    background: white;
+/* 2. Sidebar fija y con scroll independiente */
+.main-sidebar {
+    position: fixed !important; 
+    height: 100vh !important;
+    overflow-y: auto !important; /* Permite scroll si hay muchos inputs */
+    background-color: #1e282c !important; /* Negro/Azul oscuro de la sidebar */
+    box-shadow: 2px 0 5px rgba(0,0,0,0.2);
 }
 
-.nav-tabs > li > a {
-    color: #2c3e50 !important;
-    font-weight: 500;
-    border: none !important;
+/* 3. Ajuste del cuerpo para que no se meta debajo de la sidebar */
+.content-wrapper {
+    margin-left: 230px !important; /* Ancho estándar de la sidebar */
+    z-index: 800;
 }
 
-.nav-tabs > li.active > a {
-    color: #00a651 !important; /* Verde de la imagen */
-    border-bottom: 3px solid #00a651 !important;
+/* 4. Estilo para los Checkbox y Textos en la sidebar (Imagen cac09f) */
+/* Evitamos el fondo azul eléctrico que se ve en tu captura */
+.main-sidebar .checkbox label, 
+.main-sidebar .control-label, 
+.main-sidebar h4 {
+    color: #ffffff !important;
     background-color: transparent !important;
 }
 
-/* --- Sidebar y File Inputs --- */
-.main-sidebar {
-    background-color: #ffffff !important;
-    border-right: 1px solid #dee2e6;
+/* 5. Unificar las pestañas (TabBox) con el fondo */
+.nav-tabs-custom {
+    background: #ffffff !important;
+    border-radius: 8px;
+    margin-top: 15px;
 }
 
-/* Personalizar la apariencia de los inputs de archivos */
-.shiny-input-container {
-    padding: 10px;
+/* 6. Fix para el header (barra superior) */
+.main-header {
+    position: fixed !important;
+    width: 100% !important;
+    z-index: 1000;
 }
 
-.btn-file {
-    background-color: white !important;
-    border: 1px solid #dcdcdc !important;
-    border-radius: 8px !important;
-    color: #333 !important;
+.main-header .navbar {
+    margin-left: 230px !important;
+}
+
+/* 1. Permitir que el cuerpo crezca según el contenido (no fijar altura) */
+.content-wrapper, .main-footer {
+    height: auto !important; 
+    min-height: 100vh !important; /* Mínimo el alto de la pantalla */
+    display: block !important;
+}
+
+/* 2. Asegurar que el contenedor de pestañas no colapse sus elementos */
+.nav-tabs-custom {
+    height: auto !important;
+    display: inline-block; /* Ayuda a que se expanda verticalmente */
     width: 100%;
-    text-align: center;
-    margin-top: 5px;
 }
 
-.btn-file:hover {
-    border-color: #00a651 !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+/* 3. Forzar que las gráficas de Plotly tengan un alto mínimo */
+/* Esto evita que al haber muchas, Shiny las haga diminutas */
+.plotly.html-widget {
+    min-height: 400px !important; 
+    margin-bottom: 20px;
 }
 
-/* Ocultar la barra de progreso de carga si quieres algo más limpio */
-.progress {
-    height: 4px;
-    margin-top: 10px;
-}
-
-/* Color de los títulos H4 y H5 dentro de la sidebar */
-. h4,h5 {
-    color: #2c3e50 !important; /* Un azul muy oscuro casi negro */
-    font-weight: bold;
+/* 4. Si usas fluidRow, asegúrate de que no corten el flujo */
+.row {
+    display: block;
 }

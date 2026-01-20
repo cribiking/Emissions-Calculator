@@ -50,20 +50,30 @@ server <- function(input, output, session) {
     )
   })
   
-  # overview
-  output$tbl_overview <- renderDT({
-    env <- dades_env(); 
-    diets <- dades_dietes()
-    #req? Si env o dietes fos NULL (l'usuari encara no ha introduit els arxius), req farà que no es 
-    #llançi cap error, sino esperarà als documents.
-    #req es un component de shiny
-    req(env, diets)
-    tibble(
-      n_ingredients = length(unique(env$ingredient)),
-      n_origens = length(unique(env$origen)),
-      n_steps = length(unique(diets$step)),
-      n_dietes = length(unique(diets$diet))
-    ) %>% datatable()
+  
+  
+  #VISIO GENERAL
+  #Creació valueBox per visualitzar dades a visio general
+  
+  lapply(box_config, function(config) {
+    output[[config$id]] <- renderValueBox({
+      # Acceder a los datos reactivos
+      env <- dades_env()
+      diets <- dades_dietes()
+      
+      # Seguridad: req() detiene la ejecución si no hay datos
+      req(env, diets)
+      
+      # Lógica de extracción de datos
+      datos <- if(config$source == "env") env else diets
+      valor <- length(unique(datos[[config$var]]))
+      
+      valueBox(
+        value = valor,
+        subtitle = config$title,
+        color = config$color
+      )
+    })
   })
   
   # ordre de dietes (segons arxiu)
@@ -85,6 +95,8 @@ server <- function(input, output, session) {
   #Esta definint una taula amb dues columnes: ingredient i origen_selected
   overrides <- reactiveVal(tibble(ingredient = character(0), origen_selected = character(0)))
   
+  #NAVBAR SELECCIO ORIGENS I INGREDIENTS
+
   # Select ingredient UI options
   observe({
     env <- dades_env()
@@ -95,20 +107,26 @@ server <- function(input, output, session) {
   
   # UI per seleccionar origen per l'ingredient seleccionat
   output$sel_origen_ui <- renderUI({
+    
     req(input$sel_ingredient, dades_env())
     env <- dades_env()
-    oris <- origens_per_ingredient(env, input$sel_ingredient)
+    
+    # Retorna vector d'orígens disponibles per un ingredient basat en dades_env
+    oris <- origens_per_ingredient(env, input$sel_ingredient) 
     if(length(oris) == 0) {
+      
+      #Podem llegir les dades seleccionades per l'usuari amb 'input$sel_origen'
       selectInput("sel_origen", "Orígens disponibles", choices = c("(cap)"), selected = "(cap)")
     } else {
       selectInput("sel_origen", "Orígens disponibles", choices = oris, selected = oris[1])
     }
   })
   
-  # Aplica override quan s'apreta el botó
+  # Aplica override quan s'apreta el botó 'apply_override' , descrit a la UI
   observeEvent(input$apply_override, {
     req(input$sel_ingredient, input$sel_origen)
     tbl <- overrides()
+    
     # si existeix ja, actualitza; si no, afegeix
     if(input$sel_ingredient %in% tbl$ingredient) {
       tbl$origen_selected[tbl$ingredient == input$sel_ingredient] <- input$sel_origen
@@ -140,6 +158,8 @@ server <- function(input, output, session) {
     validate(need(nrow(calculate) > 0, "Solució B (step) no té dades o hi ha un error"))
     calculate
   })
+  
+  #Outputs VISIO GENERAL
   
   output$tbl_dietes_A <- renderDT({ solA_joined() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
   output$tbl_dietes_B <- renderDT({ solB_joined() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
@@ -177,6 +197,8 @@ server <- function(input, output, session) {
   resumB_animal <- reactive({ resum_per_dieta_from_joined(solB_joined(), per_animal = TRUE, kg_table = kg_table()) })
   
   # Plots
+  
+  #Plots Composicio per Dieta
   output$plot_comp_A <- renderPlotly({ plot_composicio(solA_joined(), ordre_dietes = ordre_dietes()) })
   output$plot_comp_B <- renderPlotly({ plot_composicio(solB_joined(), ordre_dietes = ordre_dietes()) })
   
@@ -187,6 +209,8 @@ server <- function(input, output, session) {
       plot_impacte_A_vs_B_generic(resumA_kg(), resumB_kg(), impactes_sel = input$impactes_sel, per_animal = FALSE)
     }
   })
+  
+  #COMPOSICIÓ PER DIETA
   
   output$plot_origen_A <- renderPlotly({
     if(input$mostrar_per_animal) {
@@ -210,6 +234,7 @@ server <- function(input, output, session) {
       plot_topN_ingredients_from_joined(solA_joined(), impacte_sel = input$impacte_top, n = 5, per_animal = FALSE)
     }
   })
+  
   output$plot_topB <- renderPlotly({
     if(input$mostrar_per_animal) {
       plot_topN_ingredients_from_joined(solB_joined(), impacte_sel = input$impacte_top, n = 5, per_animal = TRUE, kg_table = kg_table())
@@ -267,13 +292,16 @@ server <- function(input, output, session) {
     ggplotly(p)
   })
   
-  # Mapa
+  # MAPA
+  
   output$map_origens <- renderLeaflet({
     req(solA_joined(), solB_joined())
     plot_map_origens(solA_joined(), solB_joined(), transport_df = transport_df())
   })
   
-  # Download CSV
+  
+  # DOWNLOAD CSV
+  
   output$download_summary <- downloadHandler(
     filename = function() { paste0("resum_impactes_solucions_", Sys.Date(), ".csv") },
     content = function(file) {
