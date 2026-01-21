@@ -227,21 +227,64 @@ server <- function(input, output, session) {
     }
   })
   
-  output$plot_topA <- renderPlotly({
-    if(input$mostrar_per_animal) {
-      plot_topN_ingredients_from_joined(solA_joined(), impacte_sel = input$impacte_top, n = 5, per_animal = TRUE, kg_table = kg_table())
-    } else {
-      plot_topN_ingredients_from_joined(solA_joined(), impacte_sel = input$impacte_top, n = 5, per_animal = FALSE)
-    }
+  # TOP INGREDIENTS ----------------------
+  
+  
+  output$plots_topA <- renderUI({
+    
+    diets <- unique(solA_joined()$diet)
+    req(diets, input$impacte_top)
+    
+    plots <- lapply(diets, function(d) {
+      
+      outputId <- paste0("topA_", d)
+      
+      output[[outputId]] <- renderPlotly({
+        plot_topN_ingredients_per_dieta(
+          joined_df = solA_joined(),
+          diet_sel = d,
+          impacte_sel = input$impacte_top,
+          n = 5,
+          per_animal = input$mostrar_per_animal,
+          kg_table = kg_table()
+        )
+      })
+      
+      plotlyOutput(outputId, height = "400px")
+    })
+    
+    do.call(tagList, plots)
   })
   
-  output$plot_topB <- renderPlotly({
-    if(input$mostrar_per_animal) {
-      plot_topN_ingredients_from_joined(solB_joined(), impacte_sel = input$impacte_top, n = 5, per_animal = TRUE, kg_table = kg_table())
-    } else {
-      plot_topN_ingredients_from_joined(solB_joined(), impacte_sel = input$impacte_top, n = 5, per_animal = FALSE)
-    }
+  
+  output$plots_topB <- renderUI({
+    
+    diets <- unique(solB_joined()$diet)
+    req(diets, input$impacte_top)
+    
+    plots <- lapply(diets, function(d) {
+      
+      outputId <- paste0("topB_", d)
+      
+      output[[outputId]] <- renderPlotly({
+        plot_topN_ingredients_per_dieta(
+          joined_df = solB_joined(),
+          diet_sel = d,
+          impacte_sel = input$impacte_top,
+          n = 5,
+          per_animal = input$mostrar_per_animal,
+          kg_table = kg_table()
+        )
+      })
+      
+      plotlyOutput(outputId, height = "400px")
+    })
+    
+    do.call(tagList, plots)
   })
+  
+  
+  #---------------------------------------
   
   output$plot_box <- renderPlotly({
     if(input$mostrar_per_animal) {
@@ -261,36 +304,121 @@ server <- function(input, output, session) {
     ggplotly(p)
   })
   
-  output$plot_diff <- renderPlotly({
-    if(input$mostrar_per_animal) {
-      A <- resumA_animal() %>% pivot_wider(names_from = impacte, values_from = valor) %>% mutate(solucio = "A")
-      B <- resumB_animal() %>% pivot_wider(names_from = impacte, values_from = valor) %>% mutate(solucio = "B")
-    } else {
-      A <- resumA_kg() %>% pivot_wider(names_from = impacte, values_from = valor) %>% mutate(solucio = "A")
-      B <- resumB_kg() %>% pivot_wider(names_from = impacte, values_from = valor) %>% mutate(solucio = "B")
-    }
-    both_wide <- full_join(A, B, by = "diet", suffix = c("_A", "_B"))
+  #DIFERENCIA DIETA A-B
+  
+  output$plot_diff <- renderUI({
+    
+    req(input$impactes_sel)
+    
     impactes <- input$impactes_sel
-    diff_df <- map_dfr(impactes, function(imp) {
-      tibble(
-        diet = both_wide$diet,
-        impacte = imp,
-        valA = both_wide[[paste0(imp, "_A")]],
-        valB = both_wide[[paste0(imp, "_B")]],
-        diff = both_wide[[paste0(imp, "_A")]] - both_wide[[paste0(imp, "_B")]]
+    
+    plots <- lapply(impactes, function(imp) {
+      
+      outputId <- paste0("plot_diff_", imp)
+      
+      output[[outputId]] <- renderPlotly({
+        
+        #If selector del NavBar TRUE
+        if(input$mostrar_per_animal) {
+          A <- resumA_animal() %>% pivot_wider(names_from = impacte, values_from = valor)
+          B <- resumB_animal() %>% pivot_wider(names_from = impacte, values_from = valor)
+        } else {
+          A <- resumA_kg() %>% pivot_wider(names_from = impacte, values_from = valor)
+          B <- resumB_kg() %>% pivot_wider(names_from = impacte, values_from = valor)
+        }
+        
+        both <- full_join(A, B, by = "diet", suffix = c("_A", "_B"))
+        
+        diff_df <- tibble(
+          diet = both$diet,
+          diff = both[[paste0(imp, "_A")]] - both[[paste0(imp, "_B")]]
+        ) %>%
+          mutate(sign = ifelse(diff >= 0, "A pitjor", "B pitjor"))
+        
+        #Creacio Plot
+        p <- ggplot(diff_df, aes(x = diet, y = diff, fill = sign)) +
+          geom_col() +
+          coord_flip() +
+          labs(
+            title = paste("Diferència A - B:", imp),
+            y = "A - B",
+            x = "Dieta"
+          ) +
+          theme_minimal()
+        
+        ggplotly(p)
+      })
+      
+      tagList(
+        plotlyOutput(outputId, height = "400px"),
+        hr()
+      )
+      
+    })
+    
+    do.call(tagList, plots)
+  })
+  
+  #IMPACTE PER DIETA 
+  
+  # Plot impacte A vs B (resum format long)
+  output$plot_impacte_AB <- renderUI({
+    
+    req(input$impactes_sel)
+    impactes <- input$impactes_sel
+    
+    plots <- lapply(impactes, function(imp) {
+      
+      outputId <- paste0("plot_AB_", imp)
+      
+      output[[outputId]] <- renderPlotly({
+        
+        if(input$mostrar_per_animal) {
+          A <- resumA_animal()
+          B <- resumB_animal()
+        } else {
+          A <- resumA_kg()
+          B <- resumB_kg()
+        }
+        
+        both <- bind_rows(
+          A %>% mutate(solucio = "A"),
+          B %>% mutate(solucio = "B")
+        ) %>% 
+          filter(impacte == imp)
+        
+        p <- ggplot(both, aes(x = diet, y = valor, fill = solucio)) +
+          geom_col(position = position_dodge(width = 0.9)) +
+          coord_flip() +
+          labs(
+            title = paste("Comparació A vs B –", imp),
+            y = "Valor",
+            x = "Dieta"
+          ) +
+          theme_minimal()+
+          theme(
+            text = element_text(face = "bold"),
+            axis.text = element_text(face = "bold"),
+            axis.title = element_text(face = "bold"),
+            plot.title = element_text(face = "bold"),
+            legend.text = element_text(face = "bold"),
+            legend.title = element_text(face = "bold")
+          )
+        
+        ggplotly(p)
+      })
+      
+      tagList(
+        plotlyOutput(outputId, height = "400px"),
+        hr()
       )
     })
-    p <- diff_df %>%
-      mutate(sign = ifelse(is.na(diff), "NA", ifelse(diff >= 0, "A pitjor", "B pitjor"))) %>%
-      ggplot(aes(x = diet, y = diff, fill = sign)) +
-      geom_col() +
-      facet_wrap(~ impacte, scales = "free_y", ncol = 1) +
-      coord_flip() +
-      labs(title = ifelse(input$mostrar_per_animal, "Diferència A - B per dieta (per animal)", "Diferència A - B per dieta (per kg pinso)"),
-           y = "A - B", x = "Dieta") +
-      theme_minimal()
-    ggplotly(p)
+    
+    do.call(tagList, plots)
   })
+  
+  
+ 
   
   # MAPA
   

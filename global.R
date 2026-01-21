@@ -312,22 +312,7 @@ plot_composicio <- function(joined_df, ordre_dietes = NULL) {
   ggplotly(p, tooltip = c("y", "fill"))
 }
 
-# Plot impacte A vs B (resum format long)
-plot_impacte_A_vs_B_generic <- function(resA_long, resB_long, impactes_sel = NULL, per_animal = FALSE) {
-  A <- resA_long %>% mutate(solucio = "A")
-  B <- resB_long %>% mutate(solucio = "B")
-  both <- bind_rows(A, B)
-  if(!is.null(impactes_sel)) both <- both %>% filter(impacte %in% impactes_sel)
-  p <- both %>%
-    ggplot(aes(x = diet, y = valor, fill = solucio)) +
-    geom_col(position = position_dodge(width = 0.9)) +
-    facet_wrap(~ impacte, scales = "free_y", ncol = 1) +
-    coord_flip() +
-    labs(title = ifelse(per_animal, "Comparació A vs B per dieta (per animal)", "Comparació A vs B per dieta (per kg pinso)"),
-         y = "Valor", x = "Dieta") +
-    theme_minimal()
-  ggplotly(p)
-}
+#hi havia el Impacte per Dieta aqui
 
 # Plot origen per dieta
 plot_origen_per_dieta_from_joined <- function(joined_df, impactes_sel = NULL, per_animal = FALSE, ordre_dietes = NULL) {
@@ -345,21 +330,36 @@ plot_origen_per_dieta_from_joined <- function(joined_df, impactes_sel = NULL, pe
   ggplotly(p)
 }
 
+
+#TOP INGREDIENTS
 # Top N ingredients
-plot_topN_ingredients_from_joined <- function(joined_df, impacte_sel = "climate_change", n = 5, per_animal = FALSE) {
-  df <- contribucio_per_ingredient_from_joined(joined_df, per_animal = per_animal)
-  df_sel <- df %>% filter(impacte == impacte_sel)
-  df_top <- df_sel %>% group_by(diet) %>% slice_max(order_by = valor, n = n, with_ties = FALSE) %>% ungroup()
-  p <- df_top %>%
-    ggplot(aes(x = reorder_within(ingredient, valor, diet), y = valor, fill = diet)) +
+plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "climate_change",
+                                            n = 5, per_animal = FALSE, kg_table = NULL) {
+  
+  df <- contribucio_per_ingredient_from_joined(
+    joined_df, per_animal = per_animal, kg_table = kg_table
+  ) %>%
+    filter(impacte == impacte_sel, diet == diet_sel) %>%
+    slice_max(order_by = valor, n = n, with_ties = FALSE)
+  
+  p <- ggplot(df, aes(x = reorder(ingredient, valor), y = valor, fill = ingredient)) +
     geom_col() +
-    facet_wrap(~ diet, scales = "free_y") +
     coord_flip() +
-    labs(title = paste0("Top ", n, " ingredients per dieta (impacte: ", impacte_sel, ")"), y = "Valor") +
+    labs(
+      title = paste0("Top ", n, " ingredients – ", diet_sel, " (", impacte_sel, ")"),
+      y = "Valor",
+      x = "Ingredient"
+    ) +
     theme_minimal() +
-    scale_x_reordered()
+    theme(
+      legend.position = "none",
+      text = element_text(face = "bold")
+    )
+  
   ggplotly(p)
 }
+
+
 
 # Mapa: punts per origen amb lat/lon
 plot_map_origens <- function(joinedA, joinedB = NULL, transport_df = NULL) {

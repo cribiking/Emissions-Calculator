@@ -73,24 +73,42 @@ ui <- dashboardPage(
       ),
       
       tabPanel("Composició per dieta",
-               h4("Solució A"), plotlyOutput("plot_comp_A", height = "600px"),
-               h4("Solució B"), plotlyOutput("plot_comp_B", height = "600px")
+               
+               h4("Solució A"), 
+               plotlyOutput("plot_comp_A", height = "600px"),
+               
+               hr(),
+               
+               h4("Solució B"),
+               plotlyOutput("plot_comp_B", height = "600px")
       ),
       
       tabPanel("Impactes per dieta",
-               plotlyOutput("plot_impacte_A_vs_B", height = "900px")
+               uiOutput("plot_impacte_AB", height = "900px")
       ),
       
       tabPanel("Contribució per origen",
-               h5("Solució A"), plotlyOutput("plot_origen_A", height = "600px"),
-               h5("Solució B"), plotlyOutput("plot_origen_B", height = "600px")
+               
+               h4("Solució A"), 
+               plotlyOutput("plot_origen_A", height = "600px"),
+               
+               hr(),
+               
+               h4("Solució B"),
+               plotlyOutput("plot_origen_B", height = "600px")
       ),
       
       tabPanel("Top ingredients",
                selectInput("impacte_top", "Tria impacte:",
                            choices = c("climate_change", "land_use", "water_use")),
-               plotlyOutput("plot_topA", height = "600px"),
-               plotlyOutput("plot_topB", height = "600px")
+               
+               h4("Solució A – Top ingredients"),
+               uiOutput("plots_topA", height = "600px"),
+               
+               hr(),
+               
+               h4("Solució B – Top ingredients"),
+               uiOutput("plots_topB", height = "600px")
       ),
       
       tabPanel("Mapa d'orígens",
@@ -102,7 +120,8 @@ ui <- dashboardPage(
       ),
       
       tabPanel("Diferència A - B",
-               plotlyOutput("plot_diff", height = "700px")
+               uiOutput("plot_diff")
+               #plotlyOutput("plot_diff", height = "700px")
       )
     )
     )
