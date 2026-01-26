@@ -11,6 +11,11 @@ library(shinydashboard)
 library(bslib)
 library(shinyjs) # Para funcionalidades extra
 
+library(dplyr)#Mapa
+library(countrycode)
+library(highcharter)
+
+
 # ---------------------------
 # Helpers i utilitats
 # ---------------------------
@@ -18,6 +23,7 @@ library(shinyjs) # Para funcionalidades extra
 
 #Carregar dades medioambientals
 carrega_dades_ambientals <- function(path) {
+  
   df <- read_excel(path) %>% clean_names()
   # Acceptem que hi hagi múltiples files per mateix ingredient amb orígens alternatius.
   expect_cols <- c("ingredient", "group", "origen", "default_origen")
@@ -402,6 +408,84 @@ reorder_within <- function(x, by, within, fun = median, sep = "___") {
 scale_x_reordered <- function(...) {
   scale_x_discrete(labels = function(x) gsub("___.*$", "", x))
 }
+
+
+
+
+#################MAPAAA
+
+library(dplyr)
+library(tidyr)
+library(countrycode)
+
+preparar_dades_mapa_full <- function(map_df) {
+  
+  # Definimos la lista de países que representarán a "RER" (Europa)
+  paises_europa <- c("AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", 
+                     "FI", "FR", "GR", "HU", "IE", "IT", "LT", "LU", "LV", 
+                     "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK")
+  
+  map_df_processat <- map_df %>%
+    # 1. Tratamos los códigos regionales como CA-ON -> CA
+    mutate(origen_iso2 = substr(origen, 1, 2)) %>%
+    
+    # 2. Separamos RER del resto
+    mutate(es_rer = (origen == "RER"))
+  
+  # Extraemos los datos normales
+  normals <- map_df_processat %>% filter(!es_rer)
+  
+  # Extraemos RER y lo duplicamos para cada país europeo
+  rer_expandidor <- map_df_processat %>% 
+    filter(es_rer) %>%
+    uncount(length(paises_europa)) %>%
+    mutate(origen_iso2 = rep(paises_europa, length.out = n()))
+  
+  # Unimos todo y convertimos a ISO3 (que le gusta más a Highcharter)
+  final_df <- bind_rows(normals, rer_expandidor) %>%
+    mutate(iso3 = countrycode(origen_iso2, "iso2c", "iso3c")) %>%
+    filter(!is.na(iso3)) %>%
+    # Si un país tiene datos propios y también datos de RER, sumamos o promediamos
+    group_by(iso3) %>%
+    summarise(n_ingredients = sum(n_ingredients, na.rm = TRUE))
+  
+  return(final_df)
+}
+
+plot_map_solucio_highcharter <- function(joined_df, env_data, titol = "") {
+  
+  # 1. Extraemos ingredientes y hacemos el join con datos ambientales
+  map_df_base <- joined_df %>%
+    select(ingredient) %>%
+    distinct() %>%
+    left_join(env_data, by = "ingredient") %>%
+    filter(!is.na(origen))
+  
+  # 2. IMPORTANTE: Necesitamos contar los ingredientes por origen 
+  # antes de enviarlo a la función de expansión
+  map_counts <- map_df_base %>%
+    group_by(origen) %>%
+    summarise(n_ingredients = n(), .groups = 'drop')
+  
+  # 3. Llamamos a la función de expansión pasando los datos calculados
+  data_final <- preparar_dades_mapa_full(map_counts)
+
+  
+  hcmap(
+    map = "custom/world-lowres", # Usamos lowres para mayor velocidad en Shiny
+    data = data_final,
+    joinBy = c("iso-a3", "iso3"),
+    value = "n_ingredients",
+    name = "Nombre d'ingredients",
+    download_map_data = TRUE
+  ) %>%
+    hc_colorAxis(minColor = "#e6f2ff", maxColor = "#003366") %>%
+    hc_title(text = titol) %>%
+    hc_tooltip(pointFormat = "{point.name}: {point.value} ingredients") %>%
+    hc_legend(layout = "vertical", align = "right", verticalAlign = "middle") %>%
+    hc_mapNavigation(enabled = TRUE) # Permite hacer zoom
+}
+
 
 
 #######

@@ -7,9 +7,27 @@ server <- function(input, output, session) {
   # Carrega fitxers
   dades_env <- reactive({
     req(input$file_env)
+    
+    # CORRECCIÓN: Definir la ruta del archivo primero
+    ruta_archivo <- input$file_env$datapath
+    
     tryCatch({
-      carrega_dades_ambientals(input$file_env$datapath)
+      # 1. Verificar el número de hojas ANTES de cargar los datos
+      hojas <- readxl::excel_sheets(ruta_archivo)
+      
+      if(length(hojas) > 1) {
+        showNotification(
+          paste("Avis: L'arxiu conté", length(hojas), "fulls. només es processarà la primera:", hojas[1]),
+          type = "warning", 
+          duration = 10
+        )
+      }
+      
+      # 2. Llamar a tu función de carga
+      carrega_dades_ambientals(ruta_archivo)
+      
     }, error = function(e) {
+      # 3. Notificación de error si algo falla (ej. faltan columnas)
       showNotification(paste("Error fitxer ambientals:", e$message), type = "error")
       NULL
     })
@@ -93,6 +111,7 @@ server <- function(input, output, session) {
   
   #character() , crea un vector de caracters vuit
   #Esta definint una taula amb dues columnes: ingredient i origen_selected
+  
   overrides <- reactiveVal(tibble(ingredient = character(0), origen_selected = character(0)))
   
   #NAVBAR SELECCIO ORIGENS I INGREDIENTS
@@ -148,6 +167,12 @@ server <- function(input, output, session) {
                                                ordre_dietes = ordre_dietes())
     validate(need(nrow(calculate) > 0, "Solució A (step) no té dades o hi ha un error"))
     calculate
+  })
+  
+  
+  observe({
+    print("--- Contenido de solA_joined ---")
+    print(head(solA_joined())) # Muestra las primeras 6 filas en la consola de RStudio
   })
   
   solB_joined <- reactive({
@@ -426,6 +451,22 @@ server <- function(input, output, session) {
     req(solA_joined(), solB_joined())
     plot_map_origens(solA_joined(), solB_joined(), transport_df = transport_df())
   })
+  
+  
+  #Mapaaaaaaaa
+  
+  
+  output$map_solA <- renderHighchart({
+    plot_map_solucio_highcharter(solA_joined(), dades_env(), "Origen ingredients – Solució A")
+  })
+  
+  output$map_solB <- renderHighchart({
+    plot_map_solucio_highcharter(solB_joined(), dades_env(), "Origen ingredients – Solució B")
+  })
+  
+  
+  
+
   
   
   # DOWNLOAD CSV

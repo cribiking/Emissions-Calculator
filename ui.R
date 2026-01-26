@@ -112,7 +112,12 @@ ui <- dashboardPage(
       ),
       
       tabPanel("Mapa d'orígens",
-               leafletOutput("map_origens", height = "600px")
+               highchartOutput("map_solA", height = "450px"),
+               highchartOutput("map_solB", height = "450px")
+               
+               
+               
+               #leafletOutput("map_origens", height = "600px")
       ),
       
       tabPanel("Distribució",
