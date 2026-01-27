@@ -16,7 +16,10 @@ ui <- dashboardPage(
                          choices = c("climate_change", "land_use", "water_use",
                                      "eutrophication", "acidification", "particulate_matter"),
                          selected = c("climate_change", "land_use", "particulate_matter")),
-      checkboxInput("mostrar_per_animal", "Mostrar per animal", value = FALSE),
+      
+      div(class = "mi-checkbox-mostrar-per-animal",
+          checkboxInput("mostrar_per_animal", "Mostrar per animal", value = FALSE)
+      ),
       
       # 3. Panel Condicional
       conditionalPanel(
@@ -114,10 +117,6 @@ ui <- dashboardPage(
       tabPanel("Mapa d'orígens",
                highchartOutput("map_solA", height = "450px"),
                highchartOutput("map_solB", height = "450px")
-               
-               
-               
-               #leafletOutput("map_origens", height = "600px")
       ),
       
       tabPanel("Distribució",

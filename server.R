@@ -169,12 +169,6 @@ server <- function(input, output, session) {
     calculate
   })
   
-  
-  observe({
-    print("--- Contenido de solA_joined ---")
-    print(head(solA_joined())) # Muestra las primeras 6 filas en la consola de RStudio
-  })
-  
   solB_joined <- reactive({
     req(dades_env(), dades_dietes(), input$stepB)
     calculate <- calcula_solucio_amb_transport(dades_dietes(), dades_env(), input$stepB,
@@ -442,15 +436,6 @@ server <- function(input, output, session) {
     do.call(tagList, plots)
   })
   
-  
- 
-  
-  # MAPA
-  
-  output$map_origens <- renderLeaflet({
-    req(solA_joined(), solB_joined())
-    plot_map_origens(solA_joined(), solB_joined(), transport_df = transport_df())
-  })
   
   
   #Mapaaaaaaaa

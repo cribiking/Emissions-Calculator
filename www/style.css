@@ -121,3 +121,41 @@ hr {
   border-top: 3px solid #999; 
   margin: 30px 0;
 }
+
+/* Contenedor del checkbox */
+.mi-checkbox-mostrar-per-animal .checkbox {
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+
+
+/* Estilo del texto */
+.mi-checkbox-mostrar-per-animal label {
+    color: #ffffff !important; /* Texto blanco para resaltar sobre el fondo oscuro */
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    background-color: transparent !important; /* Quitamos el fondo gris claro */
+    padding: 5px 0;
+}
+
+/* Estilo del cuadro del checkbox */
+.mi-checkbox-mostrar-per-animal input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 12px !important; /* Espacio entre el cuadro y el texto */
+    cursor: pointer;
+    accent-color: #3c8dbc; /* Color azul característico de AdminLTE / Shiny */
+}
+
+/* Mejorar legibilidad de tablas en fondo oscuro */
+.table, .dataTables_wrapper {
+    color: #ecf0f1 !important;
+}
+
+.table thead th {
+    border-bottom: 2px solid #3c8dbc !important;
+    color: #3c8dbc;
+} 

@@ -366,52 +366,6 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
 }
 
 
-
-# Mapa: punts per origen amb lat/lon
-plot_map_origens <- function(joinedA, joinedB = NULL, transport_df = NULL) {
-  # Construïm suma d'ingredients per origen per solució
-  summarise_points <- function(joined) {
-    if(nrow(joined) == 0) return(tibble())
-    out <- joined %>% distinct(ingredient, origen, .keep_all = TRUE) %>%
-      group_by(origen) %>% summarise(n_ingredients = n(), .groups = "drop") %>%
-      left_join(transport_df %>% select(origen, lat = any_of("lat"), lon = any_of("lon")), by = "origen")
-    out
-  }
-  A_pts <- summarise_points(joinedA)
-  B_pts <- if(!is.null(joinedB)) summarise_points(joinedB) else tibble()
-  
-  # create leaflet map
-  m <- leaflet() %>% addTiles()
-  if(nrow(A_pts) > 0 && "lat" %in% names(A_pts) && "lon" %in% names(A_pts)) {
-    m <- m %>% addCircleMarkers(data = A_pts, lng = ~lon, lat = ~lat,
-                                radius = ~pmax(4, log1p(n_ingredients) * 4),
-                                color = "blue", group = "Solució A",
-                                label = ~paste0(origen, " (A) : ", n_ingredients, " ingredients"))
-  }
-  if(nrow(B_pts) > 0 && "lat" %in% names(B_pts) && "lon" %in% names(B_pts)) {
-    m <- m %>% addCircleMarkers(data = B_pts, lng = ~lon, lat = ~lat,
-                                radius = ~pmax(4, log1p(n_ingredients) * 4),
-                                color = "red", group = "Solució B",
-                                label = ~paste0(origen, " (B) : ", n_ingredients, " ingredients"))
-  }
-  if(nrow(A_pts) > 0 || nrow(B_pts) > 0) {
-    m <- m %>% addLayersControl(overlayGroups = c("Solució A", "Solució B"), options = layersControlOptions(collapsed = FALSE))
-  }
-  m
-}
-
-# utilitats reorder_within
-reorder_within <- function(x, by, within, fun = median, sep = "___") {
-  new_x <- paste(x, within, sep = sep)
-  stats::reorder(new_x, by, FUN = fun)
-}
-scale_x_reordered <- function(...) {
-  scale_x_discrete(labels = function(x) gsub("___.*$", "", x))
-}
-
-
-
-
 #################MAPAAA
 
 library(dplyr)
