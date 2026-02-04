@@ -478,8 +478,8 @@ server <- function(input, output, session) {
     # Si faltan, creamos una caja de alerta con una tabla
     wellPanel(
       style = "background-color: #f8d7da; border-color: #f5c6cb; color: #721c24;",
-      h4(icon("exclamation-triangle"), "Atención: Ingredientes no encontrados"),
-      p("Los siguientes ingredientes están en tu dieta pero no tienen datos asociados en el archivo ambiental:"),
+      h4(icon("exclamation-triangle"), "Atenció: Ingredients no trovats"),
+      p("Els seguents ingredients estàn a la teva dieta, pero no tenen dades asociades a l'arxiu ambiental:"),
       
       # Tabla simple de los faltantes
       tableOutput("tabla_faltantes")

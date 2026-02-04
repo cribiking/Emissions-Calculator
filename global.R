@@ -52,10 +52,13 @@ carrega_dades_dietes <- function(path) {
 
 #Carregar dades de emissions de transport
 carrega_transport <- function(path) {
-  df <- read_excel(path) %>% clean_names()
+  df <- read_excel(path, sheet=1) %>% clean_names()
   # s'espera col 'origen' i idealment les mateixes categories d'impacte + lat/lon opcional
-  if(!"origen" %in% names(df)) stop("El fitxer de transport ha de contenir la columna 'origen'")
-  df
+  if(!"origen" %in% names(df)) {
+    stop("El fitxer de transport ha de contenir la columna 'origen'")
+  }
+
+  return(df)
 }
 
 # ---------------------------
