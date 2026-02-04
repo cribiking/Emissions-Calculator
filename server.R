@@ -449,8 +449,47 @@ server <- function(input, output, session) {
     plot_map_solucio_highcharter(solB_joined(), dades_env(), "Origen ingredients – Solució B")
   })
   
+  #ingredients FALTANTS
+  # Reactivo que comprueba la integridad de los datos
+  ingredients_no_trobats <- reactive({
+    # Necesitamos que ambos archivos existan
+    req(dades_dietes(), dades_env())
+    
+    faltants <- comprovar_ingredients_faltants(dades_dietes(), dades_env())
+    
+    if(length(faltants) > 0) {
+      showNotification(
+        paste("Atenció: Falten dades ambientals per a:", paste(faltants, collapse = ", ")),
+        type = "warning",
+        duration = NULL # No desaparece hasta que el usuario la cierre
+      )
+    }
+    
+    return(faltants)
+  })
   
+  output$aviso_faltantes_ui <- renderUI({
+    # Obtenemos los ingredientes faltantes del reactivo que creamos antes
+    faltantes <- ingredients_no_trobats()
+    
+    # Si no falta ninguno, no devolvemos nada (NULL)
+    if (length(faltantes) == 0) return(NULL)
+    
+    # Si faltan, creamos una caja de alerta con una tabla
+    wellPanel(
+      style = "background-color: #f8d7da; border-color: #f5c6cb; color: #721c24;",
+      h4(icon("exclamation-triangle"), "Atención: Ingredientes no encontrados"),
+      p("Los siguientes ingredientes están en tu dieta pero no tienen datos asociados en el archivo ambiental:"),
+      
+      # Tabla simple de los faltantes
+      tableOutput("tabla_faltantes")
+    )
+  })
   
+  # Renderizamos la tabla específica de nombres
+  output$tabla_faltantes <- renderTable({
+    data.frame(Ingrediente = ingredients_no_trobats())
+  }, striped = TRUE, hover = TRUE, bordered = TRUE)
 
   
   

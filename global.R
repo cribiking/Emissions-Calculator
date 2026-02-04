@@ -440,7 +440,19 @@ plot_map_solucio_highcharter <- function(joined_df, env_data, titol = "") {
     hc_mapNavigation(enabled = TRUE) # Permite hacer zoom
 }
 
+############################COMPROVACIO INGREDIENTS FALTANTS
 
+comprovar_ingredients_faltants <- function(df_dietes, df_ambientals) {
+  # 1. Obtenemos los ingredientes únicos de ambos archivos
+  # Usamos clean_names() indirectamente o asumimos que ya vienen limpios
+  ing_dietes <- unique(df_dietes$ingredient)
+  ing_env <- unique(df_ambientals$ingredient)
+  
+  # 2. Encontramos qué hay en dietas que NO está en ambientales
+  faltants <- setdiff(ing_dietes, ing_env)
+  
+  return(faltants)
+}
 
 #######
 # Arrays de dades

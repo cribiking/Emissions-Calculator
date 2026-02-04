@@ -4,8 +4,8 @@
 html, body, .wrapper, .content-wrapper {
     background-color: #222d32 !important; /* Gris oscuro uniforme */
     min-height: 100vh !important;
-    height: auto !important;
-    display: block !important;
+    height: 100% !important;
+    display: auto !important;
 }
 
 /* Evita que el contenido choque con el header fijo */

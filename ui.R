@@ -126,7 +126,11 @@ ui <- dashboardPage(
       tabPanel("Diferència A - B",
                uiOutput("plot_diff")
                #plotlyOutput("plot_diff", height = "700px")
-      )
+      ),
+      
+      tabPanel("Verificació d'Ingredients",
+               
+               uiOutput("aviso_faltantes_ui"))
     )
     )
   ) # <-- AQUÍ se cierra el dashboardBody
