@@ -130,7 +130,11 @@ ui <- dashboardPage(
       
       tabPanel("Verificació d'Ingredients",
                
-               uiOutput("aviso_faltantes_ui"))
+               uiOutput("aviso_faltantes_ui")),
+      tabPanel("Veure solB_joined_transport",
+               
+               # En tu archivo UI o parte de la UI
+               DTOutput("tabla_resultados_b"))
     )
     )
   ) # <-- AQUÍ se cierra el dashboardBody

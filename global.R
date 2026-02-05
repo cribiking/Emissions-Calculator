@@ -57,7 +57,7 @@ carrega_transport <- function(path) {
   if(!"origen" %in% names(df)) {
     stop("El fitxer de transport ha de contenir la columna 'origen'")
   }
-
+  
   return(df)
 }
 
@@ -123,15 +123,22 @@ apply_overrides_to_env <- function(dades_env_df, overrides_df) {
 # - per a cada ingredient, triem la fila de dades_env segons override (si hi ha),
 # - multipliquem impactes per prop,
 # - sumem impactes de transport segons origen (si transport_df present)
-calcula_solucio_amb_transport <- function(dietes_df, dades_env_df, step_sel, overrides_df = NULL,
-                                          transport_df = NULL, ordre_dietes = NULL) {
+
+#dades_dietes(), dades_env(), input$stepA, overrides_df = overrides(), transport_df = transport_df(),
+#ordre_dietes = ordre_dietes()
+
+calcula_solucio_amb_transport <- function(dietes_df, dades_env_df, step_sel, overrides_df,
+                                          transport_df, ordre_dietes ) {
   # Obtenim les files de dietes per step
   dietes <- dietes_df %>% filter(step == step_sel)
+  
   if(nrow(dietes) == 0) return(tibble())
-  # Determineix orígens efectius per cada ingredient:
+  
+  # Retorna una llista dels ingredients del step seleccionat
   ing_list <- unique(dietes$ingredient)
   
   # Construïm una taula efetiva d'ingredients amb l'origen seleccionat o default
+  #Si l'usuari no ha intentat cambiar la localitat dels ingredients
   if(is.null(overrides_df) || nrow(overrides_df) == 0) {
     # use default rows
     effective_rows <- map_dfr(ing_list, function(ing) {
@@ -149,6 +156,7 @@ calcula_solucio_amb_transport <- function(dietes_df, dades_env_df, step_sel, ove
     effective_rows <- res$df
     # avisos no es retornaran aquí (poden ser capturats si cal)
   }
+  
   # effective_rows té una fila per ingredient amb origen i impactes base
   # Ara fem join amb dietes per obtenir prop i calcular impacte per kg pinso
   # Ens assegurem que tenim totes les columnes d'impacte presents:
@@ -158,11 +166,14 @@ calcula_solucio_amb_transport <- function(dietes_df, dades_env_df, step_sel, ove
   
   # Si transport_df present, volem sumar impactes de transport per origen
   if(!is.null(transport_df)) {
+    
     # prepare transport_df amb col names coincidents; si falten columnes d'impacte les ignorem
     transport_cols <- intersect(names(transport_df), impact_cols)
+    
     # join per origen -> afegim les columnes de transport prefixades
     trans_sel <- transport_df %>% select(origen, all_of(transport_cols), lat = any_of("lat"), lon = any_of("lon"))
     effective_rows <- effective_rows %>% left_join(trans_sel, by = c("origen" = "origen"))
+    
     # renombrem les columnes de transport perquè no sobreescriguin
     for(col in transport_cols) {
       if(col %in% names(effective_rows) && paste0(col, ".y") %in% names(effective_rows)) {
@@ -178,12 +189,14 @@ calcula_solucio_amb_transport <- function(dietes_df, dades_env_df, step_sel, ove
         }
       }
     }
+    
     # Now ensure transport_ columns exist (fill NA with 0)
     for(col in transport_cols) {
       tcol <- paste0("transport_", col)
       if(!tcol %in% names(effective_rows)) effective_rows[[tcol]] <- 0
       effective_rows[[tcol]][is.na(effective_rows[[tcol]])] <- 0
     }
+    
   } else {
     # if no transport provided, add zero transport cols for consistency
     for(col in impact_cols) {
@@ -215,6 +228,7 @@ calcula_solucio_amb_transport <- function(dietes_df, dades_env_df, step_sel, ove
   }
   
   joined
+  
 }
 
 # Resum per dieta (suma de contrib_* cols)

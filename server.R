@@ -47,8 +47,11 @@ server <- function(input, output, session) {
     })
   })
   
+  #Rebem el dataframe correctament
   transport_df <- reactive({
-    if(is.null(input$file_transport)) return(NULL)
+    
+    req(input$file_transport)
+    
     tryCatch({
       carrega_transport(input$file_transport$datapath)
     }, error = function(e) {
@@ -160,8 +163,10 @@ server <- function(input, output, session) {
   observeEvent(input$reset_overrides, { overrides(tibble(ingredient = character(0), origen_selected = character(0))); showNotification("Overrides reiniciats", type = "message") })
   
   # solucions calculades (joined) amb transport i overrides
-  solA_joined <- reactive({
-    req(dades_env(), dades_dietes(), input$stepA)
+  solA_joined_transport <- reactive({
+    
+    req(dades_env(), dades_dietes(), transport_df()  ,input$stepA)
+    
     calculate <- calcula_solucio_amb_transport(dades_dietes(), dades_env(), input$stepA,
                                                overrides_df = overrides(), transport_df = transport_df(),
                                                ordre_dietes = ordre_dietes())
@@ -169,8 +174,10 @@ server <- function(input, output, session) {
     calculate
   })
   
-  solB_joined <- reactive({
-    req(dades_env(), dades_dietes(), input$stepB)
+  solB_joined_transport <- reactive({
+    
+    req(dades_env(), dades_dietes(), transport_df() ,input$stepB)
+    
     calculate <- calcula_solucio_amb_transport(dades_dietes(), dades_env(), input$stepB,
                                                overrides_df = overrides(), transport_df = transport_df(),
                                                ordre_dietes = ordre_dietes())
@@ -178,10 +185,47 @@ server <- function(input, output, session) {
     calculate
   })
   
-  #Outputs VISIO GENERAL
+  ###################
   
-  output$tbl_dietes_A <- renderDT({ solA_joined() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
-  output$tbl_dietes_B <- renderDT({ solB_joined() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
+  
+  
+  output$tabla_resultados_b <- renderDT({
+    # 1. Esperamos a que el reactivo tenga datos
+    datos <- solB_joined_transport()
+    
+    # 2. Verificamos que no esté vacío (opcional, ya tienes un validate en el reactivo)
+    req(nrow(datos) > 0)
+    
+    # 3. Creamos la tabla interactiva
+    datatable(
+      datos,
+      filter = 'top',         # Añade filtros arriba de cada columna
+      rownames = FALSE,       # Quita los números de fila
+      extensions = 'Buttons', # Permite añadir botones de descarga
+      options = list(
+        pageLength = 10,      # Cuántas filas mostrar por página
+        autoWidth = TRUE,
+        dom = 'Bfrtip',       # Layout: Buttons, filter, processing, table, information, pagination
+        buttons = c('copy', 'csv', 'excel'),
+        # Si quieres que el fondo sea blanco como pediste antes:
+        initComplete = JS(
+          "function(settings, json) {",
+          "$(this.api().table().container()).css({'background-color': '#fff'});",
+          "}"
+        )
+      )
+    )
+  })
+  
+  
+  
+  
+  #####################
+  
+  #Outputs VISIO GENERAL amb transport
+  
+  output$tbl_dietes_A <- renderDT({ solA_joined_transport() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
+  output$tbl_dietes_B <- renderDT({ solB_joined_transport() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
   
   # Taula editable per kg per dieta (inicialitzada amb 1 per dieta)
   kg_table <- reactiveVal(NULL)
@@ -210,16 +254,16 @@ server <- function(input, output, session) {
   })
   
   # Resum per dieta (per kg o per animal segons checkbox)
-  resumA_kg <- reactive({ resum_per_dieta_from_joined(solA_joined(), per_animal = FALSE) })
-  resumB_kg <- reactive({ resum_per_dieta_from_joined(solB_joined(), per_animal = FALSE) })
-  resumA_animal <- reactive({ resum_per_dieta_from_joined(solA_joined(), per_animal = TRUE, kg_table = kg_table()) })
-  resumB_animal <- reactive({ resum_per_dieta_from_joined(solB_joined(), per_animal = TRUE, kg_table = kg_table()) })
+  resumA_kg <- reactive({ resum_per_dieta_from_joined(solA_joined_transport(), per_animal = FALSE) })
+  resumB_kg <- reactive({ resum_per_dieta_from_joined(solB_joined_transport(), per_animal = FALSE) })
+  resumA_animal <- reactive({ resum_per_dieta_from_joined(solA_joined_transport(), per_animal = TRUE, kg_table = kg_table()) })
+  resumB_animal <- reactive({ resum_per_dieta_from_joined(solB_joined_transport(), per_animal = TRUE, kg_table = kg_table()) })
   
   # Plots
   
   #Plots Composicio per Dieta
-  output$plot_comp_A <- renderPlotly({ plot_composicio(solA_joined(), ordre_dietes = ordre_dietes()) })
-  output$plot_comp_B <- renderPlotly({ plot_composicio(solB_joined(), ordre_dietes = ordre_dietes()) })
+  output$plot_comp_A <- renderPlotly({ plot_composicio(solA_joined_transport(), ordre_dietes = ordre_dietes()) })
+  output$plot_comp_B <- renderPlotly({ plot_composicio(solB_joined_transport(), ordre_dietes = ordre_dietes()) })
   
   output$plot_impacte_A_vs_B <- renderPlotly({
     if(input$mostrar_per_animal) {
@@ -233,16 +277,16 @@ server <- function(input, output, session) {
   
   output$plot_origen_A <- renderPlotly({
     if(input$mostrar_per_animal) {
-      plot_origen_per_dieta_from_joined(solA_joined(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
+      plot_origen_per_dieta_from_joined(solA_joined_transport(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
     } else {
-      plot_origen_per_dieta_from_joined(solA_joined(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
+      plot_origen_per_dieta_from_joined(solA_joined_transport(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
     }
   })
   output$plot_origen_B <- renderPlotly({
     if(input$mostrar_per_animal) {
-      plot_origen_per_dieta_from_joined(solB_joined(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
+      plot_origen_per_dieta_from_joined(solB_joined_transport(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
     } else {
-      plot_origen_per_dieta_from_joined(solB_joined(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
+      plot_origen_per_dieta_from_joined(solB_joined_transport(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
     }
   })
   
@@ -251,7 +295,7 @@ server <- function(input, output, session) {
   
   output$plots_topA <- renderUI({
     
-    diets <- unique(solA_joined()$diet)
+    diets <- unique(solA_joined_transport()$diet)
     req(diets, input$impacte_top)
     
     plots <- lapply(diets, function(d) {
@@ -260,7 +304,7 @@ server <- function(input, output, session) {
       
       output[[outputId]] <- renderPlotly({
         plot_topN_ingredients_per_dieta(
-          joined_df = solA_joined(),
+          joined_df = solA_joined_transport(),
           diet_sel = d,
           impacte_sel = input$impacte_top,
           n = 5,
@@ -278,7 +322,7 @@ server <- function(input, output, session) {
   
   output$plots_topB <- renderUI({
     
-    diets <- unique(solB_joined()$diet)
+    diets <- unique(solB_joined_transport()$diet)
     req(diets, input$impacte_top)
     
     plots <- lapply(diets, function(d) {
@@ -287,7 +331,7 @@ server <- function(input, output, session) {
       
       output[[outputId]] <- renderPlotly({
         plot_topN_ingredients_per_dieta(
-          joined_df = solB_joined(),
+          joined_df = solB_joined_transport(),
           diet_sel = d,
           impacte_sel = input$impacte_top,
           n = 5,
@@ -442,11 +486,11 @@ server <- function(input, output, session) {
   
   
   output$map_solA <- renderHighchart({
-    plot_map_solucio_highcharter(solA_joined(), dades_env(), "Origen ingredients – Solució A")
+    plot_map_solucio_highcharter(solA_joined_transport(), dades_env(), "Origen ingredients – Solució A")
   })
   
   output$map_solB <- renderHighchart({
-    plot_map_solucio_highcharter(solB_joined(), dades_env(), "Origen ingredients – Solució B")
+    plot_map_solucio_highcharter(solB_joined_transport(), dades_env(), "Origen ingredients – Solució B")
   })
   
   #ingredients FALTANTS
