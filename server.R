@@ -60,6 +60,18 @@ server <- function(input, output, session) {
     })
   })
   
+  dades_externes_df <- reactive({
+    req(input$file_dades_externes)
+    tryCatch({
+      carregar_dades_externes(input$file_dades_externes$datapath)
+    }, error = function(e){
+      showNotification(paste("Error fitxer dades externes:", e$message), type = "error")
+      NULL
+    })
+  })
+  
+  
+  
   # UI per steps
   output$steps_ui <- renderUI({
     df <- dades_dietes()
@@ -163,6 +175,7 @@ server <- function(input, output, session) {
   observeEvent(input$reset_overrides, { overrides(tibble(ingredient = character(0), origen_selected = character(0))); showNotification("Overrides reiniciats", type = "message") })
   
   # solucions calculades (joined) amb transport i overrides
+  
   solA_joined_transport <- reactive({
     
     req(dades_env(), dades_dietes(), transport_df()  ,input$stepA)
@@ -170,8 +183,11 @@ server <- function(input, output, session) {
     calculate <- calcula_solucio_amb_transport(dades_dietes(), dades_env(), input$stepA,
                                                overrides_df = overrides(), transport_df = transport_df(),
                                                ordre_dietes = ordre_dietes())
+    View(calculate)
+    
     validate(need(nrow(calculate) > 0, "Solució A (step) no té dades o hi ha un error"))
-    calculate
+    
+    return(calculate)
   })
   
   solB_joined_transport <- reactive({
@@ -182,45 +198,10 @@ server <- function(input, output, session) {
                                                overrides_df = overrides(), transport_df = transport_df(),
                                                ordre_dietes = ordre_dietes())
     validate(need(nrow(calculate) > 0, "Solució B (step) no té dades o hi ha un error"))
-    calculate
+    
+    return(calculate)
   })
   
-  ###################
-  
-  
-  
-  output$tabla_resultados_b <- renderDT({
-    # 1. Esperamos a que el reactivo tenga datos
-    datos <- solB_joined_transport()
-    
-    # 2. Verificamos que no esté vacío (opcional, ya tienes un validate en el reactivo)
-    req(nrow(datos) > 0)
-    
-    # 3. Creamos la tabla interactiva
-    datatable(
-      datos,
-      filter = 'top',         # Añade filtros arriba de cada columna
-      rownames = FALSE,       # Quita los números de fila
-      extensions = 'Buttons', # Permite añadir botones de descarga
-      options = list(
-        pageLength = 10,      # Cuántas filas mostrar por página
-        autoWidth = TRUE,
-        dom = 'Bfrtip',       # Layout: Buttons, filter, processing, table, information, pagination
-        buttons = c('copy', 'csv', 'excel'),
-        # Si quieres que el fondo sea blanco como pediste antes:
-        initComplete = JS(
-          "function(settings, json) {",
-          "$(this.api().table().container()).css({'background-color': '#fff'});",
-          "}"
-        )
-      )
-    )
-  })
-  
-  
-  
-  
-  #####################
   
   #Outputs VISIO GENERAL amb transport
   
@@ -273,22 +254,25 @@ server <- function(input, output, session) {
     }
   })
   
-  #COMPOSICIÓ PER DIETA
+  
+  #------------------ CONTRIBUCIO PER ORIGEN -------------
   
   output$plot_origen_A <- renderPlotly({
-    if(input$mostrar_per_animal) {
-      plot_origen_per_dieta_from_joined(solA_joined_transport(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
-    } else {
-      plot_origen_per_dieta_from_joined(solA_joined_transport(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
-    }
+      if(input$mostrar_per_animal) {
+        plot_origen_per_dieta_from_joined(solA_joined_transport(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
+     } else {
+        plot_origen_per_dieta_from_joined(solA_joined_transport(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
+     }
   })
+  
   output$plot_origen_B <- renderPlotly({
-    if(input$mostrar_per_animal) {
-      plot_origen_per_dieta_from_joined(solB_joined_transport(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
-    } else {
-      plot_origen_per_dieta_from_joined(solB_joined_transport(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
-    }
+   if(input$mostrar_per_animal) {
+     plot_origen_per_dieta_from_joined(solB_joined_transport(), impactes_sel = input$impactes_sel, per_animal = TRUE, ordre_dietes = ordre_dietes())
+   } else {
+     plot_origen_per_dieta_from_joined(solB_joined_transport(), impactes_sel = input$impactes_sel, per_animal = FALSE, ordre_dietes = ordre_dietes())
+   }
   })
+  
   
   # TOP INGREDIENTS ----------------------
   
@@ -556,4 +540,73 @@ server <- function(input, output, session) {
       write_csv(out, file)
     }
   )
+  
+  ############## Carregar dades externesss ######################33
+  
+  dades_compare <- reactive({
+    req(dades_env(), dades_externes_df())
+    
+    # 1. Preparamos la tabla externa
+    ext_wide <- dades_externes_df() %>%
+      # Filtramos por los nombres de las FILAS (emision_name)
+      filter(emision_name %in% c("climate_change", "acidification")) %>%
+      select(ingredient, emision_name, value) %>%
+      # Pivotamos: emision_name se convierte en nombres de COLUMNAS
+      pivot_wider(names_from = emision_name, values_from = value)
+    
+    # 2. Renombrado seguro: solo renombra si la columna existe tras el pivot
+    if("climate_change" %in% names(ext_wide)) {
+      ext_wide <- ext_wide %>% rename(cc_ext = climate_change)
+    }
+    if("acidification" %in% names(ext_wide)) {
+      ext_wide <- ext_wide %>% rename(acid_ext = acidification)
+    }
+    
+    # 3. Preparamos la tabla base (Ambiental) con sufijos _env
+    base_df <- dades_env() %>%
+      select(ingredient, origen, 
+             cc_env = climate_change, 
+             acid_env = acidification)
+    
+    # 4. Join y cálculo de diferencias (usando coalesce para evitar NAs si falta un dato)
+    comparacio <- base_df %>%
+      inner_join(ext_wide, by = "ingredient") %>%
+      mutate(
+        # Si cc_ext no existe en esta fila, lo tratamos como 0 o NA según prefieras
+        diff_cc = if("cc_ext" %in% names(.)) (cc_ext - cc_env) else NA,
+        diff_acid = if("acid_ext" %in% names(.)) (acid_ext - acid_env) else NA
+      )
+    
+    return(comparacio)
+  })
+  
+  
+  output$taula_externa <- renderDT({
+    df <- dades_compare()
+    req(nrow(df) > 0)
+    
+    datatable(df, 
+              caption = "Comparació d'Emissions: Base Ambiental vs Dades Externes",
+              rownames = FALSE,
+              options = list(
+                pageLength = 15, 
+                scrollX = TRUE,
+                columnDefs = list(list(className = 'dt-center', targets = "_all"))
+              )
+    ) %>%
+      # Redondeo de valores numéricos
+      formatRound(columns = c("cc_env", "cc_ext", "diff_cc", "acid_env", "acid_ext", "diff_acid"), digits = 4) %>%
+      # Estilo para la columna de Alerta
+      formatStyle(
+        'alerta',
+        color = styleEqual(c("⚠️ Revisa", "✅ OK"), c('#842029', '#0f5132')),
+        fontWeight = 'bold'
+      ) %>%
+      # Fondo rojo suave si la diferencia en CC es significativa
+      formatStyle(
+        'diff_cc',
+        backgroundColor = styleInterval(c(-0.1, 0.1), c('#d1e7dd', 'white', '#f8d7da'))
+      )
+  })
+  
 }

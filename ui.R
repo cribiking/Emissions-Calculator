@@ -7,6 +7,7 @@ ui <- dashboardPage(
       fileInput("file_env", "Dades ambientals", accept = c(".xlsx")),
       fileInput("file_diets", "Dades dietes", accept = c(".xlsx")),
       fileInput("file_transport", "Fitxer transport", accept = c(".xlsx")),
+      fileInput("file_dades_externes", "Fitxer Dades Externes", accept = c(".xlsx")),
       hr(),
       
       # 2. Selección de Steps y Filtros
@@ -92,9 +93,11 @@ ui <- dashboardPage(
       
       tabPanel("Contribució per origen",
                
+             
+               
                h4("Solució A"), 
                plotlyOutput("plot_origen_A", height = "600px"),
-               
+
                hr(),
                
                h4("Solució B"),
@@ -131,11 +134,16 @@ ui <- dashboardPage(
       tabPanel("Verificació d'Ingredients",
                
                uiOutput("aviso_faltantes_ui")),
-      tabPanel("Veure solB_joined_transport",
-               
-               # En tu archivo UI o parte de la UI
-               DTOutput("tabla_resultados_b"))
+      
+      tabPanel("Comparació Emissions"
+                
+                ),
+      
+      tabPanel("Taula Externa",
+               DTOutput("taula_externa")
+               )
     )
+      
     )
   ) # <-- AQUÍ se cierra el dashboardBody
 ) # <-- AQUÍ se cierra el dashboardPage
