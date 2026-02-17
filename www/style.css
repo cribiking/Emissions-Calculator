@@ -1,187 +1,143 @@
 /* ============================================================
-   1. ESTRUCTURA GLOBAL Y FONDOS (INFINITOS)
+   1. ESTRUCTURA GLOBAL (AMPLADA TOTAL)
    ============================================================ */
 html, body, .wrapper, .content-wrapper {
-    background-color: #222d32 !important; /* Gris oscuro uniforme */
+    background-color: #222d32 !important; /* Gris fosc uniforme de fons */
     min-height: 100vh !important;
-    height: 100% !important;
-    display: auto !important;
 }
 
-/* Evita que el contenido choque con el header fijo */
+/* El contingut ara ocupa el 100% perquè no hi ha sidebar lateral */
 .content-wrapper {
-    padding-top: 50px; /* Altura estándar del header */
-    transition: margin-left .3s ease-in-out;
-    display: flex !important;
-    flex-direction: column;
-    align-items: center; /* Centrado horizontal del contenido */
-    width: calc(100% - 230px) !important; /*Okey*/
+    margin-left: 0 !important; 
+    padding-top: 50px; 
+    width: 100% !important;
     background-color: #222d32 !important;
 }
 
-/* Cuando el sidebar está colapsado, recalculamos el ancho disponible */
-.sidebar-collapse .content-wrapper {
-    margin-left: 50px !important;
-    width: calc(100% - 50px) !important;
+/* ============================================================
+   2. HEADER DINÀMIC (INPUTS A DALT)
+   ============================================================ */
+/* Arreglar l'alineació de tot el que hi ha dins del header */
+.main-header .navbar-custom-menu {
+    float: left !important;
+    display: flex;
+    align-items: center;
+}
+
+/* Treure el marge inferior que Shiny posa als inputs per defecte */
+.header-input .form-group {
+    margin-bottom: 0 !important;
+}
+
+/* Amagar la barra de progrés de pujada i el nom del fitxer al header per guanyar espai */
+.header-input .progress, .header-input .input-group-addon, .header-input .form-control {
+    display: none !important;
+}
+
+/* Estilitzar el botó de pujada perquè sembli un botó normal del header */
+.header-input .btn-file {
+    background: rgba(255,255,255,0.15) !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    color: white !important;
+    font-size: 12px;
+    padding: 6px 10px;
+}
+
+.header-input .btn-file:hover {
+    background: rgba(255,255,255,0.3) !important;
+}
+
+/* Alineació del text "Per animal" */
+.header-switch .checkbox {
+    margin: 0 !important;
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+/* Corregir el selector multiple (Selectize) al header */
+.main-header .selectize-control {
+    margin-bottom: 0 !important;
+}
+
+.main-header .selectize-input {
+    background: rgba(255,255,255,0.1) !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    color: white !important;
+    min-height: 30px !important;
+    padding: 4px 8px !important;
 }
 
 /* ============================================================
-   2. HEADER Y SIDEBAR (FIJOS)
+   3. CONTENIDORS (TARGETES BLANQUES)
    ============================================================ */
-.main-header {
-    position: fixed !important;
-    width: 100% !important;
-}
-
-.main-sidebar {
-    position: fixed !important; 
-    height: 100vh !important;
-    width: 255px;
-    overflow-y: auto !important; 
-    background-color: #1e282c !important; 
-    box-shadow: 2px 0 5px rgba(0,0,0,0.2);
-    z-index: 850;
-}
-
-/* Ajustes de margen cuando la sidebar está abierta */
-.content-wrapper, .main-header .navbar {
-    margin-left: 230px !important;
-}
-
-/* ============================================================
-   3. COMPORTAMIENTO AL COLAPSAR (SIDEBAR CERRADA)
-   ============================================================ */
-/* Cuando el usuario cierra el menú, el cuerpo se expande y centra */
-.sidebar-collapse .content-wrapper, 
-.sidebar-collapse .main-header .navbar {
-    margin-left: 50px !important;
-}
-
-.sidebar-collapse .content-wrapper {
-    align-content: center;
-    
-}
-
-/* ============================================================
-   4. CONTENEDORES Y GRÁFICOS (RESIZING)
-   ============================================================ */
-/* Limitamos el ancho máximo para que no se deformen en pantallas ultra-anchas */
-.nav-tabs-custom, .container-fluid {
-    /* CAMBIO CLAVE: Usamos width: 95% para dar aire y que sea elástico */
-    width: 95% !important; 
-    max-width: 1600px; 
-    margin: 15px auto;
+/* Centrem i limitem l'amplada màxima per a una lectura òptima */
+.nav-tabs-custom, .tab-content, .container-fluid {
+    width: 98% !important; 
+    max-width: 1800px; 
+    margin: 10px auto;
     background: #ffffff !important;
     border-radius: 8px;
-    height: auto !important;
-    /* Evita que el contenido se desborde */
-    overflow: hidden;
-}
-
-/* Forzar que las gráficas crezcan hacia abajo y no se compriman */
-.plotly.html-widget {
-    min-height: 500px !important; 
-    margin-bottom: 30px;
-}
-
-.row {
-    display: block; /* Mantiene el flujo vertical */
-}
-
-/* Forzar que Plotly ocupe todo el ancho disponible del padre */
-.plotly.html-widget, .js-plotly-plot {
-    width: 100% !important;
+    padding: 15px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
 /* ============================================================
-   5. TEXTOS Y CONTROLES (LEGIBILIDAD)
+   4. GRÀFICS I TAULES
    ============================================================ */
-.main-sidebar .checkbox label, 
-.main-sidebar .control-label, 
-.main-sidebar h4,
-.main-sidebar .help-block {
-    color: #ffffff !important;
-    background-color: transparent !important;
-}
-
-h4 {
-    text-align: center;
-    font-weight: bold;
-    color: #333333; /* Para títulos dentro del cuerpo blanco */
-}
-
-/* Estilo para los títulos específicos dentro de la sidebar oscura */
-.main-sidebar h4 {
-    color: #ffffff !important;
-    padding: 10px 15px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-hr {
-  border-top: 3px solid #999; 
-  margin: 30px 0;
-}
-
-/* Contenedor del checkbox */
-.mi-checkbox-mostrar-per-animal .checkbox {
-    margin-top: 10px;
+/* Forcem que Plotly i Highcharts ocupin tot l'espai de la seva columna */
+.plotly.html-widget, .highchart.html-widget {
+    width: 100% !important;
     margin-bottom: 20px;
 }
 
-
-/* Estilo del texto */
-.mi-checkbox-mostrar-per-animal label {
-    color: #ffffff !important; /* Texto blanco para resaltar sobre el fondo oscuro */
-    font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    background-color: transparent !important; /* Quitamos el fondo gris claro */
-    padding: 5px 0;
-}
-
-/* Estilo del cuadro del checkbox */
-.mi-checkbox-mostrar-per-animal input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    margin-right: 12px !important; /* Espacio entre el cuadro y el texto */
-    cursor: pointer;
-    accent-color: #3c8dbc; /* Color azul característico de AdminLTE / Shiny */
-}
-
-/* Mejorar legibilidad de tablas en fondo oscuro */
-.table, .dataTables_wrapper {
-    color: black !important;
+/* Estil per a les taules DataTables */
+.dataTables_wrapper {
+    background-color: white !important;
+    padding: 10px;
+    border-radius: 5px;
+    color: #333 !important;
 }
 
 .table thead th {
     border-bottom: 2px solid #3c8dbc !important;
     color: #3c8dbc;
-} 
-
-#tbl_kg_edit {
-    background-color:white !important;
 }
 
-/* 1. Forzar el fondo gris y letra blanca en el recuadro del input */
+/* ============================================================
+   5. ELEMENTS DE FORMULARI (INPUTS GRISOS)
+   ============================================================ */
+/* Inputs numèrics i de text amb estil fosc/gris */
 input[type="number"], 
-.shiny-input-container input {
-    background-color: #767676 !important; /* El gris que elegimos */
-    color: white !important;              /* Letra blanca */
-    border: 1px solid #999999 !important; /* Un borde sutil para que se vea el límite */
+input[type="text"],
+.selectize-input {
+    background-color: #f4f4f4 !important;
+    color: #333 !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
 }
 
-/* 2. Evitar que el fondo se vuelva blanco al hacer clic (focus) */
-input[type="number"]:focus, 
-.shiny-input-container input:focus {
-    background-color: #767676 !important;
-    color: white !important;
-    outline: none !important;
-    border-color: #ffffff !important; /* El borde se ilumina al escribir */
+/* Focus: Quan l'usuari clica per escriure */
+input:focus, .selectize-input.focus {
+    border-color: #3c8dbc !important;
+    box-shadow: none !important;
 }
 
-/* 3. Estilo para el texto que acompaña al input (el label) */
-.control-label {
-    color: white !important;
+/* Línies separadores (HR) més elegants */
+hr {
+    border-top: 1px solid #ddd;
+    margin: 25px 0;
+}
+
+/* ============================================================
+   6. TIPOGRAFIA DINS DEL COS
+   ============================================================ */
+h4 {
+    font-weight: bold;
+    color: #2c3e50;
+    margin-top: 0;
+}
+
+.help-block {
+    color: #7f8c8d !important; /* Gris suau per a textos d'ajuda */
 }
