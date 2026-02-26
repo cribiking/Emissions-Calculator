@@ -1,68 +1,45 @@
 /* ============================================================
-   1. ESTRUCTURA I FONS
+    1. ESTRUCTURA I COLORS DE FONS
    ============================================================ */
 html, body, .wrapper, .content-wrapper {
     background-color: #222d32 !important;
     min-height: 100vh !important;
 }
 
-.content-wrapper {
-    margin-left: 0 !important; 
-    padding-top: 220px; 
-    width: 100% !important;
-}
 
-/* Elimina el logo i eixampla la navbar */
-.main-header .logo { display: none !important; }
-.main-header .navbar { margin-left: 0 !important; width: 100% !important; }
-
-/* ============================================================
-   2. HEADER (NETEJA)
-   ============================================================ */
-/* 1. Sincronitzem l'alçada real del header */
-.main-header, .main-header .navbar {
-    height: 200px !important;
-    min-height: 200px !important;
-}
-
-/* 2. Ajustem el cos perquè comenci exactament on acaba el header */
-.content-wrapper {
-    padding-top: 200 !important;
-}
-
-/* 3. Neteja de marges de Shiny que "empenyen" els elements */
-.main-header .shiny-input-container {
-    margin-bottom: 0 !important;
-    padding-top: 0 !important;
-}
-
-/* 4. Fem que el checkbox "Per animal" no tingui marges estranys */
-.main-header .checkbox {
-    margin: 0 !important;
-    color: white !important;
-}
-
-.main-header .checkbox label {
-    font-weight: bold;
-}
-
-/* 5. Estil per al botó Browse (més compacte) */
-.main-header .btn-file {
-    padding: 4px 10px;
-    font-size: 12px;
+/* Neteja de la Navbar */
+.main-header .navbar { 
+    height: auto !important;
+    
 }
 
 /* ============================================================
-   3. COS (TARGETES BLANQUES)
+    2. TARGETES DE CONTINGUT (BLANQUES)
    ============================================================ */
-.nav-tabs-custom, .tab-content, .container-fluid {
-    width: 98% !important; 
-    max-width: 1800px; 
-    margin: 15px auto;
+.nav-tabs-custom, .tab-content, .box, .container-fluid {
     background: #ffffff !important;
+    color: #333 !important;
     border-radius: 8px;
     padding: 20px;
+    margin: 15px auto;
+    width: 98% !important;
+    max-width: 1800px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* Estils de text per a inputs dins del cos */
+.checkbox label {
+    font-weight: bold;
+    color: #333 !important; /* Ara el text és fosc perquè el fons és blanc */
+}
+
+/* ============================================================
+    3. ELEMENTS DE DADES
+   ============================================================ */
+/* Taules */
+.dataTables_wrapper {
+    background-color: white !important;
+    color: #333 !important;
 }
 
 /* Gràfics */
@@ -71,8 +48,8 @@ html, body, .wrapper, .content-wrapper {
     margin-bottom: 20px;
 }
 
-/* Taules */
-.dataTables_wrapper {
-    background-color: white !important;
-    color: #333 !important;
+/* Botons de fitxer */
+.btn-file {
+    background-color: #3c8dbc !important;
+    color: white !important;
 }
