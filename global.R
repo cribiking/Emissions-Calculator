@@ -1,23 +1,21 @@
-# app.R (versió amb reassignació d'origen per ingredient + transport impacts + mapa)
+# --- Paquets essencials per a la interfície i reactivitat ---
 library(shiny)
-library(tidyverse)
-library(readxl)
-library(janitor)
-library(DT)
-library(plotly)
-library(leaflet)
 library(shinydashboard)
+library(DT)             # Per a les taules interactives (tbl_kg_edit, etc.)
+library(plotly)         # Per als gràfics dinàmics (barres, boxplots)
 
-library(bslib)
-library(shinyjs) # Para funcionalidades extra
+# --- Paquets per al processament de dades ---
+library(tidyverse)      # Inclou dplyr, tidyr, ggplot2, etc.
+library(readxl)         # Per llegir els fitxers .xlsx
+library(janitor)        # Per netejar noms de columnes (clean_names)
 
-library(dplyr)#Mapa
-library(countrycode)
-library(highcharter)
+# --- Paquets per al Mapa ---
+library(countrycode)    # Per convertir ISO2 a ISO3
+library(highcharter)    # Per al mapa d'orígens (utilitza worldgeojson intern)
 
 
 # ---------------------------
-# Helpers i utilitats
+# Càrregar Fitxers
 # ---------------------------
 
 
@@ -67,6 +65,14 @@ carrega_transport <- function(path) {
 # ---------------------------
 # Obté la fila "default" d'un ingredient (default_origen == 1) si existeix
 
+
+
+# Retorna vector d'orígens disponibles per un ingredient basat en dades_env
+origens_per_ingredient <- function(dades_env_df, ingredient_name) {
+  dados <- dades_env_df %>% filter(ingredient == ingredient_name)
+  unique(dados$origen)
+}
+
 get_default_row_for_ingredient <- function(dades_env_df, ingredient_name) {
   df <- dades_env_df %>% filter(ingredient == ingredient_name)
   if(nrow(df) == 0) return(NULL)
@@ -78,12 +84,6 @@ get_default_row_for_ingredient <- function(dades_env_df, ingredient_name) {
   }
   # si no hi ha default, retornem la primera fila (primer origen llistat)
   df[1, ]
-}
-
-# Retorna vector d'orígens disponibles per un ingredient basat en dades_env
-origens_per_ingredient <- function(dades_env_df, ingredient_name) {
-  dados <- dades_env_df %>% filter(ingredient == ingredient_name)
-  unique(dados$origen)
 }
 
 # Aplica overrides (ingredient -> origen seleccionat) sobre les dades ambientals:
@@ -117,6 +117,8 @@ apply_overrides_to_env <- function(dades_env_df, overrides_df) {
   out_df <- bind_rows(out_rows)
   list(df = out_df, msgs = msgs)
 }
+
+
 
 # ---------------------------
 # Càlculs: integra transport impacts amb la fila d'ingredient seleccionada
@@ -228,7 +230,7 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
     ) %>%
     select(-starts_with("tr_"))
     
-  View( emissions_per_kg_ambTransport_df)  
+  #View( emissions_per_kg_ambTransport_df)  
   
     # 1. Aseguramos que tenemos la tabla de proporciones correcta
     # Nota: Usamos 'step_ing' que ya contiene 'diet', 'ingredient' y 'prop'
@@ -301,6 +303,7 @@ resum_per_dieta_from_joined <- function(joined_df, per_animal = FALSE, kg_table 
 
 # Contrib per ingredient (per dieta) ja disponible a joined_df
 contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE, kg_table = NULL) {
+  
   contrib_cols <- names(joined_df)[str_detect(names(joined_df), "^contrib_")]
   df <- joined_df %>%
     select(diet, ingredient, all_of(contrib_cols), prop)
@@ -373,7 +376,7 @@ contribucio_per_origen_from_joined <- function(joined_df, per_animal = FALSE, kg
     group_by(diet, origen) %>%
     summarise(across(all_of(intersect(impact_cols, names(.))), sum, na.rm = TRUE), .groups = "drop")
   
-  View(res)
+  #View(res)
   
   # 2. Càlcul per animal (si escau)
   if(per_animal && !is.null(kg_table)) {
@@ -391,10 +394,12 @@ contribucio_per_origen_from_joined <- function(joined_df, per_animal = FALSE, kg
     # Eliminem el mutate de str_remove perquè els teus noms ja són nets
     select(diet, origen, impacte, valor)
   
-  View(res_long)
+  #View(res_long)
   
   return(res_long) 
 }
+
+
 ########################################### CONTRIBUCIO PER ORIGEN  ########################################### 
 
 
@@ -450,142 +455,142 @@ plot_origen_per_dieta_from_joined <- function(joined_df, impactes_sel = NULL, pe
 ########################################### TOP INGREDIENTS  ########################################### 
 
 
-contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE, kg_table = NULL) {
+plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "climate_change", 
+                                            n = 5, per_animal = FALSE, kg_table = NULL, 
+                                            bar_color = "#2c3e50") {
   
+  # 1. Definim les columnes d'impacte basant-nos en la imatge
   impact_cols <- c("climate_change", "land_use", "water_use", 
                    "eutrophication", "acidification", "particulate_matter")
   
-  # 1. Seleccionamos las columnas necesarias y nos aseguramos de que existen
-  target_cols <- intersect(impact_cols, names(joined_df))
-  
-  # 2. Calculamos la contribución real (Impacto * Proporción)
-  # Esto es necesario si joined_df contiene el impacto por kg de ingrediente
-  df <- joined_df %>%
-    mutate(across(all_of(target_cols), ~ .x * coalesce(prop, 0), .names = "contrib_{.col}"))
-  
-  # 3. Si es por animal, multiplicamos por el consumo total
-  if(per_animal && !is.null(kg_table)) {
-    kg_tbl <- kg_table %>% distinct(diet, kg_consum)
-    df <- df %>% 
-      left_join(kg_tbl, by = "diet") %>%
-      mutate(across(starts_with("contrib_"), ~ .x * coalesce(kg_consum, 1))) %>%
-      select(-kg_consum)
-  }
-  
-  # 4. Pivotamos usando el nuevo prefijo creado en el paso 2
-  df_long <- df %>%
+  # 2. Transformem el dataframe de format "wide" a "long" per poder filtrar per impacte
+  # També netegem possibles valors NA que apareixen a la imatge
+  df_long <- joined_df %>%
     pivot_longer(
-      cols = starts_with("contrib_"), 
-      names_to = "var", 
+      cols = all_of(impact_cols),
+      names_to = "impacte",
       values_to = "valor"
     ) %>%
-    mutate(impacte = str_remove(var, "^contrib_")) %>%
-    select(diet, ingredient, impacte, prop, valor)
+      # Filtrem la dieta i l'impacte primer
+      filter(diet == diet_sel, impacte == impacte_sel) %>%
+      # Eliminem valors buits i valors zero que poden falsejar el rànquing
+      filter(!is.na(valor), valor > 0)
   
-  return(df_long)
-}
-
-plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "climate_change",
-                                            n = 5, per_animal = FALSE, kg_table = NULL) {
+  # 2. SELECCIÓ REAL DEL TOP N
+  # Ordenem de forma descendent i agafem els N primers
+  df_top <- df_long %>%
+    arrange(desc(valor)) %>%
+    head(n) %>%
+    # FORCEM l'ordre de l'ingredient com a factor basat en el valor 
+    # (això evita que ggplot els torni a desordenar alfabèticament)
+    mutate(ingredient = factor(ingredient, levels = ingredient[order(valor)]))
   
-  # Obtenemos los datos procesados
-  df_all <- contribucio_per_ingredient_from_joined(
-    joined_df, per_animal = per_animal, kg_table = kg_table
-  )
+  # Validació: Si no hi ha dades després del filtre
+  if(nrow(df_top) == 0) {
+    return(plotly_empty() %>% layout(title = "Sense dades per aquesta selecció"))
+  }
   
-  # Filtramos por dieta e impacto y seleccionamos los N mejores
-  df <- df_all %>%
-    filter(impacte == impacte_sel, diet == diet_sel) %>%
-    slice_max(order_by = valor, n = n, with_ties = FALSE)
-  
-  # Validación: Si el filtro devuelve 0 filas, mostramos gráfico vacío
-  if(nrow(df) == 0) return(plotly_empty() %>% layout(title = "Sense dades per aquesta selecció"))
-  
-  p <- ggplot(df, aes(x = reorder(ingredient, valor), y = valor, fill = ingredient)) +
-    geom_col() +
+  # 3. Gràfic amb escala de 0.05 i ordre correcte
+  p <- ggplot(df_top, aes(x = ingredient, y = valor)) +
+    geom_col(fill = bar_color, width = 0.7) + 
     coord_flip() +
+    scale_y_continuous(
+      # Forçem els salts de 0.05
+      breaks = seq(0, max(df_top$valor, na.rm = TRUE) * 1.2, by = 0.05),
+      # CORRECCIÓ: Forçem format decimal amb 2 o 3 dígits, sense notació científica
+      labels = scales::label_number(accuracy = 0.01),
+      expand = expansion(mult = c(0, 0.15))
+    ) +
     labs(
-      title = paste0("Top ", n, " ingredients – ", diet_sel, " (", impacte_sel, ")"),
+      title = paste0("Top ", n, " ingredients – ", diet_sel),
+      subtitle = paste("Impacte:", impacte_sel),
       y = "Contribució (Impacte)",
-      x = "Ingredient"
+      x = ""
     ) +
     theme_minimal() +
     theme(
-      legend.position = "none",
-      text = element_text(face = "bold")
+      text = element_text(face = "bold"),
+      # Afegim línies de graella més visibles per ajudar a la lectura dels 0.05
+      panel.grid.major.x = element_line(color = "#e0e0e0"),
+      panel.grid.minor.x = element_line(color = "#f0f0f0")
     )
   
-  ggplotly(p)
+  ggplotly(p) %>% 
+    layout(margin = list(l = 150, r = 50, b = 50, t = 50)) 
 }
-
 #################MAPAAA
 
-library(dplyr)
-library(tidyr)
-library(countrycode)
 
+
+# Descarreguem el mapa del món una sola vegada al principi
+#mapa_mundi <- download_map_data("custom/world")
+
+# Funció per processar els orígens (agrupant Europa a Espanya)
 preparar_dades_mapa_full <- function(map_df) {
-  # Llista de països per a RER (Europa)
-  paises_europa <- c("AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", 
-                     "FI", "FR", "GR", "HU", "IE", "IT", "LT", "LU", "LV", 
-                     "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK")
+  req(map_df)
   
-  map_df_processat <- map_df %>%
-    mutate(origen_iso2 = substr(origen, 1, 2),
-           es_rer = (origen == "RER"))
-  
-  normals <- map_df_processat %>% filter(!es_rer)
-  
-  # Expandim RER mantenint la llista d'ingredients
-  rer_expandidor <- map_df_processat %>% 
-    filter(es_rer) %>%
-    uncount(length(paises_europa)) %>%
-    mutate(origen_iso2 = rep(paises_europa, length.out = n()))
-  
-  final_df <- bind_rows(normals, rer_expandidor) %>%
-    mutate(iso3 = countrycode(origen_iso2, "iso2c", "iso3c")) %>%
-    filter(!is.na(iso3)) %>%
-    group_by(iso3) %>%
+  df_resultat <- map_df %>%
+    mutate(
+      # Mantenim el codi de 2 lletres (ISO2) 
+      iso2 = ifelse(origen == "RER", "ES", substr(origen, 1, 2))
+    ) %>%
+    mutate(iso2 = trimws(iso2)) %>%
+    filter(!is.na(iso2), iso2 != "") %>%
+    group_by(iso2) %>%
     summarise(
-      n_ingredients = n(),
-      # Concatenem els noms per al tooltip
-      llista_ingredients = paste(unique(ingredient), collapse = ", ")
+      value = n_distinct(ingredient),
+      llista_ingredients = paste(unique(ingredient), collapse = ", "),
+      .groups = "drop"
     )
   
-  return(final_df)
+  return(df_resultat)
 }
 
-plot_map_solucio_highcharter <- function(joined_df, env_data, titol = "") {
+# Funció per dibuixar el mapa sense dependre de cap descàrrega externa
+plot_map_final <- function(df, titol) {
+  if (is.null(df) || nrow(df) == 0) return(NULL)
   
-  # 1. Preparem la base amb el nom de l'ingredient
-  map_df_base <- joined_df %>%
-    select(ingredient) %>%
-    distinct() %>%
-    left_join(env_data %>% select(ingredient, origen), by = "ingredient") %>%
-    filter(!is.na(origen))
+  # Assegurem que el dataframe estigui en majúscules per fer el match
+  df <- df %>% mutate(iso2 = toupper(trimws(iso2)))
   
-  # 2. Enviem la llista completa a processar
-  data_final <- preparar_dades_mapa_full(map_df_base)
-  
-  hcmap(
-    map = "custom/world-lowres", 
-    data = data_final,
-    joinBy = c("iso-a3", "iso3"),
-    value = "n_ingredients",
-    name = "Ingredients",
-    download_map_data = TRUE
-  ) %>%
-    hc_colorAxis(minColor = "#e6f2ff", maxColor = "#003366") %>%
-    hc_title(text = titol) %>%
-    # Tooltip HTML per mostrar el nombre i la llista a sota
-    hc_tooltip(
-      useHTML = TRUE,
-      headerFormat = "<b>{point.name}</b><br>",
-      pointFormat = "<b>Total:</b> {point.value}<br><b>Quins:</b> {point.llista_ingredients}"
+  highchart(type = "map") %>%
+    hc_add_series_map(
+      map = worldgeojson, 
+      df = df,
+      value = "value",
+      joinBy = c("iso2", "iso2"), 
+      name = "Ingredients",
+      borderWidth = 0.5,
+      nullColor = "#f0f0f0"
     ) %>%
-    hc_legend(layout = "vertical", align = "right", verticalAlign = "middle") %>%
-    hc_mapNavigation(enabled = TRUE)
+    hc_colorAxis(
+      minColor = "#e8f4fd", 
+      maxColor = "#2c3e50"
+    ) %>%
+    hc_mapNavigation(enabled = TRUE) %>%
+    hc_tooltip(
+       useHTML = TRUE,
+       backgroundColor = "rgba(255, 255, 255, 0.95)",
+       borderRadius = 8,
+       borderWidth = 1,
+       borderColor = "#2c3e50",
+       shadow = TRUE,
+       headerFormat = "
+        <div style='background-color: #2c3e50; color: white; padding: 5px 10px; border-radius: 5px 5px 0 0; margin: -7px -7px 5px -7px;'>
+          <span style='font-size: 14px; font-weight: bold;'>{point.name}</span>
+        </div>",
+               pointFormat = "
+        <div style='padding: 5px;'>
+          <span style='color: #7f8c8d; font-size: 11px; text-transform: uppercase; font-weight: bold;'>Total Ingredients</span><br>
+          <span style='font-size: 18px; color: #2c3e50; font-weight: bold;'>{point.value} from {point.name}</span><br>
+          <hr style='margin: 5px 0; border: 0; border-top: 1px solid #eee;'>
+          <span style='color: #7f8c8d; font-size: 11px; text-transform: uppercase; font-weight: bold;'>Detall dels ingredients</span><br>
+          <span style='font-size: 12px; color: #34495e; line-height: 1.4;'><i>{point.llista_ingredients}</i></span>
+        </div>") %>%
+    hc_title(text = titol) %>%
+    hc_credits(enabled = TRUE, text = "Dades Europa (RER) assignades a Espanya")
 }
+
 ############################COMPROVACIO INGREDIENTS FALTANTS
 
 comprovar_ingredients_faltants <- function(df_dietes, df_ambientals) {
@@ -629,11 +634,71 @@ plot_diferencies_AB <- function(A_data, B_data, imp) {
 }
 
 
-
+########################## PERCETNANGE EMISSIONS ##################################
+plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, impacte_sel) {
+  
+  # 1. Unim dades per país d'origen
+  df_unificat <- df_dietes %>%
+    left_join(transport_df, by = "origen", suffix = c(".diet", ".transp"))
+  
+  # 2. Identifiquem les columnes dinàmiques
+  col_diet <- paste0(impacte_sel, ".diet")
+  col_transp <- paste0(impacte_sel, ".transp")
+  
+  # 3. Calculem la descomposició per a cada dieta
+  df_resum <- df_unificat %>%
+    group_by(diet) %>%
+    summarise(
+      # Calculem el transport i passem de Tones a Kg (/1000)
+      Total_Transport_Kg = sum((!!sym(col_transp) * prop) / 1000, na.rm = TRUE),
+      # El total acumulat ja el tenim a la base de dades
+      Total_Acumulat = sum(!!sym(col_diet), na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    mutate(
+      # Aïllem el valor de l'ingredient restant el transport convertit
+      Total_Ingredient = Total_Acumulat - Total_Transport_Kg
+    ) %>%
+    # Format per a ggplot
+    select(diet, Total_Ingredient, Total_Transport_Kg) %>%
+    pivot_longer(cols = c("Impacte Ingredients", "Impacte Transport"), 
+                 names_to = "Origen", values_to = "Valor")
+  
+  # 4. Gràfic de barres apilades
+  p <- ggplot(df_resum, aes(x = diet, y = Valor, fill = Origen)) +
+    geom_col(width = 0.6) +
+    values = c("Impacte Ingredients" = "#2c3e50", "Impacte Transport" = "#e67e22") +
+              labels = c("Impacte Ingredient", "Impacte Transport (Convertit a Kg)") +
+    scale_y_continuous(labels = scales::label_number(accuracy = 0.0001)) +
+    labs(
+      title = paste("Descomposició d'Impacte:", toupper(gsub("_", " ", impacte_sel))),
+      x = "Dieta", 
+      y = "Impacte (Kg CO2 eq o unitat equivalent)", 
+      fill = "Origen"
+    ) +
+    theme_minimal() +
+    theme(text = element_text(face = "bold"), legend.position = "bottom")
+  
+  ggplotly(p)
+}
 
 #######
 # Arrays de dades
 #######
+
+# Al teu fitxer Global.R o a l'inici de l'app
+colors_paisos <- c(
+  "ES"  = "#2c3e50", # Blau fosc (Espanya / RER)
+  "FR"  = "#3498db", # Blau clar
+  "DE"  = "#e67e22", # Taronja
+  "NL"  = "#f1c40f", # Groc
+  "BR"  = "#27ae60", # Verd
+  "USA" = "#c0392b", # Vermell
+  "RER" = "#2c3e50", # Mateix que ES si vols coherència
+  "Altres" = "#95a5a6" # Gris per a la resta
+)
+
+
 
 
 # 1. Array per creació de ValueBoxes a 'Visio General'

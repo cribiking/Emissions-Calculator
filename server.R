@@ -12,7 +12,7 @@
 
 server <- function(input, output, session) {
   
-  ###################################### CÀRREGA DE FITXERS ##########################################33
+  ###################################### CÀRREGA DE FITXERS ##########################################
   
   dades_env <- reactive({
     req(input$file_env)
@@ -239,6 +239,8 @@ server <- function(input, output, session) {
         
         p <- ggplot(both, aes(x = diet, y = valor, fill = solucio)) +
           geom_col(position = position_dodge(width = 0.9)) +
+          # AFEGIM COLORS ESTÀNDARD (Blau i Gris)
+          scale_fill_manual(values = c("A" = "#3498db", "B" = "#e67e22")) +
           coord_flip() +
           labs(
             title = paste("Comparació A vs B –", imp),
@@ -294,9 +296,12 @@ server <- function(input, output, session) {
         
         p <- ggplot(df_plot, aes(x = diet, y = valor, fill = origen)) +
           geom_col(color = "white", size = 0.2) +
+          # APLICAR EL MAPEIG FIX DE COLORS
+          scale_fill_manual(values = colors_paisos, aesthetics = "fill") +
           coord_flip() +
           labs(title = paste("A -", imp), y = "Valor", x = "Dieta") +
           theme_minimal() +
+          theme(text = element_text(face = "bold")) + # Per coherència amb els altres plots
           scale_y_continuous(labels = scales::label_scientific(digits = 2))
         
         ggplotly(p)
@@ -330,9 +335,12 @@ server <- function(input, output, session) {
         
         p <- ggplot(df_plot, aes(x = diet, y = valor, fill = origen)) +
           geom_col(color = "white", size = 0.2) +
+          # APLICAR EL MAPEIG FIX DE COLORS
+          scale_fill_manual(values = colors_paisos, aesthetics = "fill") +
           coord_flip() +
           labs(title = paste("B -", imp), y = "Valor", x = "Dieta") +
           theme_minimal() +
+          theme(text = element_text(face = "bold")) + # Per coherència amb els altres plots
           scale_y_continuous(labels = scales::label_scientific(digits = 2))
         
         ggplotly(p)
@@ -351,7 +359,11 @@ server <- function(input, output, session) {
   # --- TOP INGREDIENTS SOLUCIÓ A ---
   output$plots_topA <- renderUI({
     req(solA_joined_transport(), input$impacte_top)
-    diets <- unique(solA_joined_transport()$diet)
+    
+    # Obtenim les dietes com a vector (imprescindible per al lapply)
+    diets <- solA_joined_transport() %>%
+      pull(diet) %>%
+      unique()
     
     plots <- lapply(diets, function(d) {
       outputId <- paste0("topA_", d)
@@ -363,13 +375,13 @@ server <- function(input, output, session) {
           impacte_sel = input$impacte_top,
           n = 5,
           per_animal = input$mostrar_per_animal,
-          kg_table = kg_table()
+          kg_table = kg_table(),
+          bar_color = "#2c3e50" # Blau fosc per a la Solució A
         )
       })
       
-      # Afegim un títol petit per a cada dieta dins de la llista
       tagList(
-        h5(paste("Dieta:", d), style = "color: #34495e; margin-top: 20px;"),
+        h5(paste("Dieta:", d), style = "color: #2c3e50; font-weight: bold; margin-top: 20px;"),
         plotlyOutput(outputId, height = "300px"),
         hr()
       )
@@ -380,7 +392,11 @@ server <- function(input, output, session) {
   # --- TOP INGREDIENTS SOLUCIÓ B ---
   output$plots_topB <- renderUI({
     req(solB_joined_transport(), input$impacte_top)
-    diets <- unique(solB_joined_transport()$diet)
+    
+    # Obtenim les dietes com a vector
+    diets <- solB_joined_transport() %>%
+      pull(diet) %>%
+      unique()
     
     plots <- lapply(diets, function(d) {
       outputId <- paste0("topB_", d)
@@ -392,12 +408,13 @@ server <- function(input, output, session) {
           impacte_sel = input$impacte_top,
           n = 5,
           per_animal = input$mostrar_per_animal,
-          kg_table = kg_table()
+          kg_table = kg_table(),
+          bar_color = "#95a5a6" # Gris per a la Solució B
         )
       })
       
       tagList(
-        h5(paste("Dieta:", d), style = "color: #34495e; margin-top: 20px;"),
+        h5(paste("Dieta:", d), style = "color: #7f8c8d; font-weight: bold; margin-top: 20px;"),
         plotlyOutput(outputId, height = "300px"),
         hr()
       )
@@ -409,75 +426,87 @@ server <- function(input, output, session) {
   #---
   
   ############################################ MAPA  ########################################### 
-  
-  # 1. Mapes amb validació
+  # Mapa Solució A
   output$map_solA <- renderHighchart({
-    req(solA_joined_transport(), dades_env()) # Validació de seguretat
-    plot_map_solucio_highcharter(solA_joined_transport(), dades_env())
-  })
-  
-  output$map_solB <- renderHighchart({
-    req(solB_joined_transport(), dades_env()) # Validació de seguretat
-    plot_map_solucio_highcharter(solB_joined_transport(), dades_env())
-  })
-  
-  # 2. Reactiu d'ingredients faltants (només càlcul)
-  ingredients_no_trobats <- reactive({
-    req(dades_dietes(), dades_env())
-    comprovar_ingredients_faltants(dades_dietes(), dades_env())
-  })
-  
-  # 3. Observador per a la notificació (només surt un cop)
-  observeEvent(ingredients_no_trobats(), {
-    faltants <- ingredients_no_trobats()
-    if(length(faltants) > 0) {
-      showNotification(
-        paste("Atenció: Falten dades ambientals per a:", paste(faltants, collapse = ", ")),
-        type = "warning",
-        id = "aviso_faltants", # ID fix per evitar duplicats
-        duration = 10 # Millor posar un temps llarg que no "infinit" per no molestar
+    req(solA_joined_transport(), dades_env())
+
+    map_df_base <- solA_joined_transport() %>%
+      # Normalitzem text: treure espais i passar a majúscules
+      mutate(ingredient = toupper(trimws(ingredient))) %>%
+      select(ingredient) %>%
+      distinct() %>%
+      left_join(
+        dades_env() %>%
+          mutate(ingredient = toupper(trimws(ingredient))) %>%
+          select(ingredient, origen),
+        by = "ingredient"
       )
-    }
+
+    df_mapa <- preparar_dades_mapa_full(map_df_base)
+    plot_map_final(df_mapa, "Origen ingredients – Solució A")
   })
   
-  # 4. Interfície d'avís (es manté igual, és correcta)
-  output$aviso_faltantes_ui <- renderUI({
-    faltantes <- ingredients_no_trobats()
-    if (length(faltantes) == 0) return(NULL)
-    
-    wellPanel(
-      style = "background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; margin-top: 15px;",
-      h4(icon("exclamation-triangle"), "Atenció: Ingredients no trobats"),
-      p("Els següents ingredients estan a la teva dieta, però no tenen dades associades a l'arxiu ambiental:"),
-      tableOutput("tabla_faltantes")
-    )
+  # Mapa Solució B
+  output$map_solB <- renderHighchart({
+    req(solB_joined_transport(), dades_env())
+
+    map_df_base <- solB_joined_transport() %>%
+      mutate(ingredient = toupper(trimws(ingredient))) %>%
+      select(ingredient) %>%
+      distinct() %>%
+      left_join(
+        dades_env() %>%
+          mutate(ingredient = toupper(trimws(ingredient))) %>%
+          select(ingredient, origen),
+        by = "ingredient"
+      )
+
+    df_mapa <- preparar_dades_mapa_full(map_df_base)
+    plot_map_final(df_mapa, "Origen ingredients – Solució B")
   })
-  
-  output$tabla_faltantes <- renderTable({
-    data.frame(Ingrediente = ingredients_no_trobats())
-  }, striped = TRUE, hover = TRUE, bordered = TRUE)
-  
-  #---
-  
   
   ############################################ DISTRIBUCIÓ ############################################ 
   
-  output$plot_box <- renderPlotly({
-    if(input$mostrar_per_animal) {
-      dfA <- resumA_animal() %>% mutate(solucio = "A")
-      dfB <- resumB_animal() %>% mutate(solucio = "B")
-    } else {
-      dfA <- resumA_kg() %>% mutate(solucio = "A")
-      dfB <- resumB_kg() %>% mutate(solucio = "B")
-    }
-    both <- bind_rows(dfA, dfB) %>% filter(impacte %in% input$impactes_sel)
-    p <- both %>%
-      ggplot(aes(x = solucio, y = valor, fill = solucio)) +
-      geom_boxplot() +
-      facet_wrap(~ impacte, scales = "free_y", ncol = 1) +
-      labs(title = "Distribució d'impactes per solució", y = "Valor") +
-      theme_minimal()
-    ggplotly(p)
+  output$plot_box_ui <- renderUI({
+    req(input$impactes_sel)
+    impactes <- input$impactes_sel
+    
+    # Creem un llistat de gràfics (un per cada impacte)
+    plots_list <- lapply(impactes, function(imp) {
+      plot_id <- paste0("box_", imp)
+      
+      output[[plot_id]] <- renderPlotly({
+        # Triem dades segons el switch 'Per animal'
+        if(input$mostrar_per_animal) {
+          dfA <- resumA_animal() %>% mutate(solucio = "A")
+          dfB <- resumB_animal() %>% mutate(solucio = "B")
+        } else {
+          dfA <- resumA_kg() %>% mutate(solucio = "A")
+          dfB <- resumB_kg() %>% mutate(solucio = "B")
+        }
+        
+        # Filtrem només per l'impacte actual de la iteració
+        both_filtered <- bind_rows(dfA, dfB) %>% 
+          filter(impacte == imp)
+        
+        p <- ggplot(both_filtered, aes(x = solucio, y = valor, fill = solucio)) +
+          geom_boxplot(alpha = 0.7, outlier.colour = "red") +
+          geom_jitter(width = 0.1, alpha = 0.3) + # Opcional: per veure els punts individuals
+          scale_fill_manual(values = c("A" = "#f8766d", "B" = "#00bfc4")) +
+          labs(title = paste("Distribució:", imp), y = "Valor", x = "Solució") +
+          theme_minimal() +
+          theme(legend.position = "none") # La llegenda ja s'entén per l'eix X
+        
+        ggplotly(p)
+      })
+      
+      # Cada gràfic va dins d'un contenidor amb espaiat
+      div(style = "margin-bottom: 30px; padding: 10px; border: 1px solid #eee; border-radius: 5px; background: white;",
+          plotlyOutput(plot_id, height = "400px")
+      )
+    })
+    
+    do.call(tagList, plots_list)
   })
   
   #---
@@ -499,6 +528,63 @@ server <- function(input, output, session) {
       plotlyOutput(plot_id, height = "350px")
     }) %>% do.call(tagList, .)
   })
+  
+  #---
+  
+  ############################################ VERIFICACIO INGREDIENTS ############################################ 
+  
+  
+  # --- Lògica d'ingredients faltants al Server ---
+  
+  # 1. Reactiu que calcula la llista d'ingredients faltants
+  # Es dispararà automàticament quan canviïn els fitxers de dietes o ambientals
+  ingredients_no_trobats <- reactive({
+    req(dades_dietes(), dades_env()) # Espera que els fitxers estiguin carregats
+    
+    # Cridem a la teva funció definida al Global.R
+    faltants <- comprovar_ingredients_faltants(dades_dietes(), dades_env())
+    return(faltants)
+  })
+  
+  # 2. Observador per enviar una notificació emergent (toast) si hi ha errors
+  observeEvent(ingredients_no_trobats(), {
+    faltants <- ingredients_no_trobats()
+    if(length(faltants) > 0) {
+      showNotification(
+        paste("Atenció: Falten dades ambientals per a", length(faltants), "ingredients."),
+        type = "warning",
+        id = "aviso_faltants",
+        duration = 10
+      )
+    }
+  })
+  
+  # 3. Renderització de la interfície d'avís (per a la pestanya de Verificació)
+  output$aviso_faltantes_ui <- renderUI({
+    faltants <- ingredients_no_trobats()
+    
+    # Si tot és correcte, mostrem un missatge positiu
+    if (length(faltants) == 0) {
+      return(
+        div(style = "color: #155724; background-color: #d4edda; padding: 15px; border-radius: 5px; border: 1px solid #c3e6cb;",
+            icon("check-circle"), " Tots els ingredients de la dieta han estat trobats a la base de dades ambiental.")
+      )
+    }
+    
+    # Si falten dades, mostrem el panell d'alerta vermell
+    wellPanel(
+      style = "background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; margin-top: 15px;",
+      h4(icon("exclamation-triangle"), "Atenció: Ingredients no trobats"),
+      p("Els següents ingredients apareixen a les dietes però no tenen valors d'impacte assignats:"),
+      tableOutput("tabla_faltantes")
+    )
+  })
+  
+  # 4. Taula detallada d'ingredients faltants
+  output$tabla_faltantes <- renderTable({
+    req(ingredients_no_trobats())
+    data.frame(Ingredients_Faltants = ingredients_no_trobats())
+  }, striped = TRUE, hover = TRUE, bordered = TRUE)
   
   
   #---

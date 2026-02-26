@@ -1,33 +1,44 @@
 ui <- dashboardPage(
   # 1. HEADER AMB INPUTS (Maximitzem espai lateral)
   header = dashboardHeader(
-    title = span(tagList(icon("leaf"), "Impactes")),
-    titleWidth = 200,
+    title = "", titleWidth = 0,
     
     tags$li(class = "dropdown",
-            style = "padding: 5px 15px; display: flex; align-items: center; gap: 10px;",
+            style = "width: 100vw; height: 220px; min-height:220px; display: flex; align-items: center; justify-content: space-around; padding: 0 20px;",
             
-            # Inputs de fitxers més compactes (sense labels)
-            div(class = "header-input", fileInput("file_env", NULL, buttonLabel = "Ambiental", accept = ".xlsx", width = "120px")),
-            div(class = "header-input", fileInput("file_diets", NULL, buttonLabel = "Dietes", accept = ".xlsx", width = "120px")),
-            div(class = "header-input", fileInput("file_transport", NULL, buttonLabel = "Transport", accept = ".xlsx", width = "120px")),
+            # BLOC 1: Fitxers (Columna)
+            div(style = "display: flex; flex-direction: column; gap: 5px; justify-content: center; padding: 20px;",
+                fileInput("file_env", NULL, buttonLabel = "Ambiental", accept = ".xlsx", width = "200px"),
+                fileInput("file_diets", NULL, buttonLabel = "Dietes", accept = ".xlsx", width = "200px"),
+                fileInput("file_transport", NULL, buttonLabel = "Transport", accept = ".xlsx", width = "200px")
+            ),
             
-            # Selector d'impactes estilitzat
-            div(style = "width: 250px; margin-top: 15px;", 
-                selectizeInput("impactes_sel", NULL, 
-                               choices = c("climate_change", "land_use", "water_use", "eutrophication", "acidification", "particulate_matter"),
-                               selected = c("climate_change", "land_use"),
-                               multiple = TRUE, options = list(placeholder = 'Impactes...'))),
+            # BLOC NOU: Selecció de Pas (Step) - Integrat al Header
+            div(style = "display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 180px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;",
+                h4("Etapa / Pas", style = "margin: 0; color: white; font-weight: bold; font-size: 14px;"),
+                uiOutput("steps_ui") 
+            ),
             
-            # Switch d'animal
-            div(class = "header-switch", 
-                checkboxInput("mostrar_per_animal", "Per animal", value = FALSE)),
             
-            # Botó excel
-            downloadButton("download_summary", "Excel", class = "btn-success btn-sm", style = "margin-left: 10px;")
+            # BLOC 2: Impactes (Columna Centrada)
+            div(style = "display: flex; flex-direction: column; justify-content: center; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;",
+                checkboxGroupInput("impactes_sel", NULL, 
+                                   choices = c("Climate Change" = "climate_change", "Land Use" = "land_use", 
+                                               "Water Use" = "water_use", "Eutrophication" = "eutrophication", 
+                                               "Acidification" = "acidification", "Particulate Matter" = "particulate_matter"),
+                                   selected = c("climate_change", "land_use"),
+                                   inline = FALSE)
+            ),
+            
+            # BLOC 3: Opcions i Botó (Centrat verticalment)
+            div(style = "display: flex; flex-direction: column; align-items: center; gap: 15px; justify-content: center;",
+                div(style = "margin-top: -10px;", # Correcció d'alineació per al checkbox
+                    checkboxInput("mostrar_per_animal", "Per animal", value = FALSE)
+                ),
+                downloadButton("download_summary", "Excel", class = "btn-success")
+            )
     )
   ),
-  
   # 2. SIDEBAR DESACTIVAT (Per guanyar el 100% de l'ample)
   sidebar = dashboardSidebar(disable = TRUE),
   
@@ -43,17 +54,13 @@ ui <- dashboardPage(
       "))
     ),
     
-    div(style = "padding : 20px;",
+    div(style = "padding : 5px;",
         
         # --- BLOC DE CONFIGURACIÓ AVANÇADA (Col·lapsable) ---
         fluidRow(
           box(title = "Configuració Avançada, Steps i Overrides", width = 12, 
               collapsible = TRUE, collapsed = TRUE, status = "warning", icon = icon("cog"),
               fluidRow(
-                column(3, 
-                       h4("Selecció de Pas (Step)"),
-                       uiOutput("steps_ui")
-                ),
                 column(3, 
                        h4("Reassignar orígens"),
                        selectInput("sel_ingredient", "Ingredient", choices = NULL),
@@ -171,7 +178,15 @@ ui <- dashboardPage(
                             selectInput("impacte_top", "Selecciona l'impacte per al Top 5:",
                                         choices = c("climate_change", "land_use", "water_use", 
                                                     "eutrophication", "acidification", "particulate_matter"),
-                                        width = "50%")
+                                        width = "50%"),
+                            
+                            # Nota informativa sobre els percentatges petits
+                            div(style = "width: 50%; background-color: #fff9e6; border-left: 5px solid #ffcc00; padding: 10px; margin-top: 10px; text-align: left; border-radius: 4px;",
+                                span(icon("exclamation-triangle"), style = "color: #e67e22; margin-right: 8px;"),
+                                tags$small(style = "color: #7f8c8d;",
+                                           "Nota: Si algun ingredient no mostra una barra visible, és perquè el seu impacte és proporcionalment molt baix. ",
+                                           strong("Podeu fer zoom al gràfic"))
+                            )
                      )
                    ),
                    br(),
@@ -198,28 +213,31 @@ ui <- dashboardPage(
           # --- Pestanya Mapa d'orígens ---
           tabPanel("Mapa d'orígens",
                    br(),
-                   fluidRow(
-                     column(12,
-                            div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #2c3e50;",
-                                h4("Origen ingredients – Solució A", style = "font-weight: bold; margin-left: 10px;")),
-                            highchartOutput("map_solA", height = "550px"))
+                   # Nota informativa millorada en català
+                   div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 8px; border-left: 6px solid #3498db; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
+                       span(icon("info-circle"), style = "color: #3498db; margin-right: 10px; font-size: 18px;"),
+                       strong("Notes sobre la representació:"), 
+                       tags$ul(style = "margin-top: 10px;",
+                               tags$li(style = "margin-bottom: 5px;", 
+                                       "Els ingredients amb origen genèric europeu (", strong("RER"), 
+                                       ") s'han assignat a ", strong("Espanya"), " per a la seva visualització."),
+                               tags$li("A causa de la codificació internacional (ISO), les dades de ", strong("França"), 
+                                       " es repliquen automàticament en els seus territoris d'ultramar i illes (com la Guaiana Francesa o Reunió).")
+                       )
                    ),
-                   br(), hr(), br(),
+                   
                    fluidRow(
-                     column(12,
-                            div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #2c3e50;",
-                                h4("Origen ingredients – Solució B", style = "font-weight: bold; margin-left: 10px;")),
-                            highchartOutput("map_solB", height = "550px"))
+                     column(6, 
+                            div(style = "background-color: #f8f9fa; padding: 12px; border-radius: 8px 8px 0 0; border-bottom: 2px solid #2c3e50;",
+                                h4(icon("map-marker-alt"), " Origen ingredients – Solució A", style = "font-weight: bold; margin:0;")),
+                            highchartOutput("map_solA", height = "550px")
+                     ),
+                     column(6, 
+                            div(style = "background-color: #f8f9fa; padding: 12px; border-radius: 8px 8px 0 0; border-bottom: 2px solid #2c3e50;",
+                                h4(icon("map-marker-alt"), " Origen ingredients – Solució B", style = "font-weight: bold; margin:0;")),
+                            highchartOutput("map_solB", height = "550px")
+                     )
                    )
-          ),
-          
-          # --- Pestanya Distribució ---
-          tabPanel("Distribució",
-                   br(),
-                   div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #3498db;",
-                       h4("Anàlisi de Distribució i Variabilitat", style = "font-weight: bold; margin-left: 10px;")),
-                   br(),
-                   plotlyOutput("plot_box", height = "700px")
           ),
           
           # --- Pestanya Diferència A - B ---

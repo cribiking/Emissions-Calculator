@@ -1,143 +1,78 @@
 /* ============================================================
-   1. ESTRUCTURA GLOBAL (AMPLADA TOTAL)
+   1. ESTRUCTURA I FONS
    ============================================================ */
 html, body, .wrapper, .content-wrapper {
-    background-color: #222d32 !important; /* Gris fosc uniforme de fons */
+    background-color: #222d32 !important;
     min-height: 100vh !important;
 }
 
-/* El contingut ara ocupa el 100% perquè no hi ha sidebar lateral */
 .content-wrapper {
     margin-left: 0 !important; 
-    padding-top: 50px; 
+    padding-top: 220px; 
     width: 100% !important;
-    background-color: #222d32 !important;
 }
+
+/* Elimina el logo i eixampla la navbar */
+.main-header .logo { display: none !important; }
+.main-header .navbar { margin-left: 0 !important; width: 100% !important; }
 
 /* ============================================================
-   2. HEADER DINÀMIC (INPUTS A DALT)
+   2. HEADER (NETEJA)
    ============================================================ */
-/* Arreglar l'alineació de tot el que hi ha dins del header */
-.main-header .navbar-custom-menu {
-    float: left !important;
-    display: flex;
-    align-items: center;
+/* 1. Sincronitzem l'alçada real del header */
+.main-header, .main-header .navbar {
+    height: 200px !important;
+    min-height: 200px !important;
 }
 
-/* Treure el marge inferior que Shiny posa als inputs per defecte */
-.header-input .form-group {
+/* 2. Ajustem el cos perquè comenci exactament on acaba el header */
+.content-wrapper {
+    padding-top: 200 !important;
+}
+
+/* 3. Neteja de marges de Shiny que "empenyen" els elements */
+.main-header .shiny-input-container {
     margin-bottom: 0 !important;
+    padding-top: 0 !important;
 }
 
-/* Amagar la barra de progrés de pujada i el nom del fitxer al header per guanyar espai */
-.header-input .progress, .header-input .input-group-addon, .header-input .form-control {
-    display: none !important;
-}
-
-/* Estilitzar el botó de pujada perquè sembli un botó normal del header */
-.header-input .btn-file {
-    background: rgba(255,255,255,0.15) !important;
-    border: 1px solid rgba(255,255,255,0.3) !important;
-    color: white !important;
-    font-size: 12px;
-    padding: 6px 10px;
-}
-
-.header-input .btn-file:hover {
-    background: rgba(255,255,255,0.3) !important;
-}
-
-/* Alineació del text "Per animal" */
-.header-switch .checkbox {
+/* 4. Fem que el checkbox "Per animal" no tingui marges estranys */
+.main-header .checkbox {
     margin: 0 !important;
-    color: white;
-    font-size: 13px;
+    color: white !important;
+}
+
+.main-header .checkbox label {
     font-weight: bold;
 }
 
-/* Corregir el selector multiple (Selectize) al header */
-.main-header .selectize-control {
-    margin-bottom: 0 !important;
-}
-
-.main-header .selectize-input {
-    background: rgba(255,255,255,0.1) !important;
-    border: 1px solid rgba(255,255,255,0.3) !important;
-    color: white !important;
-    min-height: 30px !important;
-    padding: 4px 8px !important;
+/* 5. Estil per al botó Browse (més compacte) */
+.main-header .btn-file {
+    padding: 4px 10px;
+    font-size: 12px;
 }
 
 /* ============================================================
-   3. CONTENIDORS (TARGETES BLANQUES)
+   3. COS (TARGETES BLANQUES)
    ============================================================ */
-/* Centrem i limitem l'amplada màxima per a una lectura òptima */
 .nav-tabs-custom, .tab-content, .container-fluid {
     width: 98% !important; 
     max-width: 1800px; 
-    margin: 10px auto;
+    margin: 15px auto;
     background: #ffffff !important;
     border-radius: 8px;
-    padding: 15px;
+    padding: 20px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-/* ============================================================
-   4. GRÀFICS I TAULES
-   ============================================================ */
-/* Forcem que Plotly i Highcharts ocupin tot l'espai de la seva columna */
+/* Gràfics */
 .plotly.html-widget, .highchart.html-widget {
     width: 100% !important;
     margin-bottom: 20px;
 }
 
-/* Estil per a les taules DataTables */
+/* Taules */
 .dataTables_wrapper {
     background-color: white !important;
-    padding: 10px;
-    border-radius: 5px;
     color: #333 !important;
-}
-
-.table thead th {
-    border-bottom: 2px solid #3c8dbc !important;
-    color: #3c8dbc;
-}
-
-/* ============================================================
-   5. ELEMENTS DE FORMULARI (INPUTS GRISOS)
-   ============================================================ */
-/* Inputs numèrics i de text amb estil fosc/gris */
-input[type="number"], 
-input[type="text"],
-.selectize-input {
-    background-color: #f4f4f4 !important;
-    color: #333 !important;
-    border: 1px solid #ccc !important;
-    border-radius: 4px !important;
-}
-
-/* Focus: Quan l'usuari clica per escriure */
-input:focus, .selectize-input.focus {
-    border-color: #3c8dbc !important;
-    box-shadow: none !important;
-}
-
-/* Línies separadores (HR) més elegants */
-hr {
-    border-top: 1px solid #ddd;
-    margin: 25px 0;
-}
-
-/* ============================================================
-   6. TIPOGRAFIA DINS DEL COS
-   ============================================================ */
-h4 {
-    font-weight: bold;
-    color: #2c3e50;
-    margin-top: 0;
-}
-
-.help-block {
-    color: #7f8c8d !important; /* Gris suau per a textos d'ajuda */
 }
