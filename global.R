@@ -14,6 +14,25 @@ library(countrycode)    # Per convertir ISO2 a ISO3
 library(highcharter)    # Per al mapa d'orígens (utilitza worldgeojson intern)
 
 
+
+
+############ VARIABLE GLOBAL #####################
+
+
+IMPACT_NAMES <- c("climate_change", "land_use", "water_use", 
+                  "eutrophication_marine", "acidification", "particulate_matter")
+
+
+# Defineix-lo així per poder fer cerques per clau
+UNITATS <- c(
+  "climate_change"        = "kg CO2 eq", 
+  "land_use"              = "dimensionless (pt)", 
+  "water_use"             = "m3 world eq", 
+  "eutrophication_marine" = "kg N eq", 
+  "acidification"         = "mol H+ eq", 
+  "particulate_matter"    = "disease incidence"
+)
+
 # ---------------------------
 # Càrregar Fitxers
 # ---------------------------
@@ -26,9 +45,8 @@ carrega_dades_ambientals <- function(path) {
   # Acceptem que hi hagi múltiples files per mateix ingredient amb orígens alternatius.
   expect_cols <- c("ingredient", "group", "origen", "default_origen")
   # a més, busquem les columnes d'impacte (acceptem subset)
-  impact_cols <- intersect(c("climate_change", "land_use", "water_use",
-                             "eutrophication", "acidification", "particulate_matter"),
-                           names(df))
+  impact_cols <- intersect(IMPACT_NAMES, names(df))
+  
   missing_cols <- setdiff(expect_cols, names(df))
   if(length(missing_cols) > 0) {
     stop("Falten columnes obligatòries a dades mediambientals: ", paste(missing_cols, collapse = ", "))
@@ -67,10 +85,23 @@ carrega_transport <- function(path) {
 
 
 
-# Retorna vector d'orígens disponibles per un ingredient basat en dades_env
-origens_per_ingredient <- function(dades_env_df, ingredient_name) {
-  dados <- dades_env_df %>% filter(ingredient == ingredient_name)
-  unique(dados$origen)
+# Retorna un df amb cada ingredient i un vector (llista) dels seus orígens
+origens_per_ingredient <- function(dades_env_df) {
+  
+  ing_amb_origen <- dades_env_df %>% 
+    
+    select(ingredient, origen) %>%
+    distinct() %>%
+    # Agrupem pel nom de l'ingredient
+    group_by(ingredient) %>%
+    # Creem la columna 'origen' com un vector de cadenes de text
+    summarise(
+      origen = list(origen),
+      n_origens = n(), # Comptador útil per fer el filtre posterior
+      .groups = 'drop'
+    )
+  
+  return(ing_amb_origen)
 }
 
 get_default_row_for_ingredient <- function(dades_env_df, ingredient_name) {
@@ -206,9 +237,7 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
   #View(origen_list_effective)
   
   #obtenim emissions necessàries
-  impact_cols_effective <- intersect(
-    c("climate_change", "land_use", "water_use","eutrophication", "acidification", "particulate_matter"), 
-    names(transport_df))
+  impact_cols_effective <- intersect( IMPACT_NAMES,names(transport_df))
   
   #obtenim les emisions del fitxer transport, per obtenir un df i poder sumar amb effective rows
   # 1. Filtramos transport_df para quedarnos solo con los ingredientes que nos interesan
@@ -224,7 +253,7 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
   emissions_per_kg_ambTransport_df <- effective_rows %>%
     left_join(transporte_limpio, by = "origen") %>%
     mutate(
-      # Sumem original + transport i DIVIDIM PER 1000 per passar de Tona a Kg
+      # Sumem original + transport i DIVIDIM PER 1000 per passar de Tona a Kg. Ja que els dos valor estan en TONES
       across(all_of(impact_cols_effective), 
              ~ (.x + coalesce(get(paste0("tr_", cur_column())), 0)) / 1000)
     ) %>%
@@ -249,22 +278,23 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
       # no la elimines del select.
       select(ingredient, diet, prop, all_of(impact_cols_effective), everything())
     
-    View(final_df)
-    
     return(final_df)
 }
+ #---
+
+dades_consum_animals <- function(kg_table , final_df){
+  #Reb el final_df amb tot calculat, i multiplica els 
+}
+
 
 
   #-------------------------------------------------------------------------
 
-resum_per_dieta_from_joined <- function(joined_df, per_animal = FALSE, kg_table = NULL) {
+resum_per_dieta_from_joined <- function(joined_df) {
   
-  # 1. Definim els noms exactes que surten de 'calcula_solucio_amb_transport'
-  impact_cols <- c("climate_change", "land_use", "water_use", 
-                   "eutrophication", "acidification", "particulate_matter")
   
   # 2. Ens assegurem de seleccionar només les columnes que realment existeixen al DF
-  target_cols <- intersect(impact_cols, names(joined_df))
+  target_cols <- intersect(IMPACT_NAMES, names(joined_df))
   
   # Si no troba cap columna d'impacte, retornem un DF buit amb l'estructura correcta
   if(length(target_cols) == 0) {
@@ -277,15 +307,6 @@ resum_per_dieta_from_joined <- function(joined_df, per_animal = FALSE, kg_table 
     summarise(across(all_of(target_cols), sum, na.rm = TRUE), .groups = "drop")
   
   #View(res)
-  
-  # 4. Multiplicació opcional per consum animal
-  if(per_animal && !is.null(kg_table)) {
-    kg_tbl <- kg_table %>% distinct(diet, kg_consum)
-    res <- res %>% 
-      left_join(kg_tbl, by = "diet") %>%
-      mutate(across(all_of(target_cols), ~ .x * coalesce(kg_consum, 1))) %>%
-      select(-kg_consum)
-  }
   
   # 5. EL PAS CLAU: Pivotar per crear la columna 'impacte'
   # Això converteix les columnes (climate_change, land_use...) en files
@@ -300,6 +321,55 @@ resum_per_dieta_from_joined <- function(joined_df, per_animal = FALSE, kg_table 
   
   return(res_long)
 }
+
+
+
+
+################## 3###########################
+
+calcul_contribucio_total_per_animal <- function(joined_df , kg_table = NULL){
+  
+  # 2. Ens assegurem de seleccionar només les columnes que realment existeixen al DF
+  target_cols <- intersect(IMPACT_NAMES, names(joined_df))
+  
+  # Si no troba cap columna d'impacte, retornem un DF buit amb l'estructura correcta
+  if(length(target_cols) == 0) {
+    return(tibble(diet = character(), impacte = character(), valor = numeric()))
+  }
+  
+  # 3. Sumem els valors per cada dieta
+  res <- joined_df %>%
+    group_by(diet) %>%
+    summarise(across(all_of(target_cols), sum, na.rm = TRUE), .groups = "drop")
+  
+  #View(res)
+  
+  kg_tbl <- kg_table %>% distinct(diet, kg_consum)
+  res <- res %>% 
+    left_join(kg_tbl, by = "diet") %>%
+    mutate(across(all_of(target_cols), ~ .x * coalesce(kg_consum, 1))) %>%
+    select(-kg_consum)
+
+  
+  # 5. EL PAS CLAU: Pivotar per crear la columna 'impacte'
+  # Això converteix les columnes (climate_change, land_use...) en files
+  res_long_anim <- res %>%
+    pivot_longer(
+      cols = all_of(target_cols), 
+      names_to = "impacte",   # Aquí es crea la columna que et donava l'error
+      values_to = "valor"
+    )
+  
+  #View(res_long_anim)
+  
+  return(res_long_anim)
+  
+}
+
+
+
+
+
 
 # Contrib per ingredient (per dieta) ja disponible a joined_df
 contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE, kg_table = NULL) {
@@ -364,29 +434,20 @@ plot_composicio <- function(joined_df, ordre_dietes = NULL) {
 }
 
 
+
+
+
+
 # Contribució per origen (ja tenim origen_region en joined_df)
 
-contribucio_per_origen_from_joined <- function(joined_df, per_animal = FALSE, kg_table = NULL) {
-  
-  impact_cols <- c("climate_change", "land_use", "water_use", 
-                   "eutrophication", "acidification", "particulate_matter")
+contribucio_per_origen_from_joined <- function(joined_df) {
   
   # 1. Agrupem per dieta i origen
   res <- joined_df %>%
     group_by(diet, origen) %>%
-    summarise(across(all_of(intersect(impact_cols, names(.))), sum, na.rm = TRUE), .groups = "drop")
+    summarise(across(all_of(intersect(IMPACT_NAMES, names(.))), sum, na.rm = TRUE), .groups = "drop")
   
   #View(res)
-  
-  # 2. Càlcul per animal (si escau)
-  if(per_animal && !is.null(kg_table)) {
-    kg_tbl <- kg_table %>% distinct(diet, kg_consum)
-    res <- res %>% 
-      left_join(kg_tbl, by = "diet") %>%
-      # Important: Aquí les teves columnes NO tenen el prefix "contrib_" encara
-      mutate(across(all_of(intersect(impact_cols, names(.))), ~ .x * coalesce(kg_consum, 1))) %>%
-      select(-kg_consum)
-  }
   
   # 3. Pivotatge a format llarg
   res_long <- res %>%
@@ -457,17 +518,13 @@ plot_origen_per_dieta_from_joined <- function(joined_df, impactes_sel = NULL, pe
 
 plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "climate_change", 
                                             n = 5, per_animal = FALSE, kg_table = NULL, 
-                                            bar_color = "#2c3e50") {
-  
-  # 1. Definim les columnes d'impacte basant-nos en la imatge
-  impact_cols <- c("climate_change", "land_use", "water_use", 
-                   "eutrophication", "acidification", "particulate_matter")
+                                            bar_color = "#2c3e50" , unitat_text = "") {
   
   # 2. Transformem el dataframe de format "wide" a "long" per poder filtrar per impacte
   # També netegem possibles valors NA que apareixen a la imatge
   df_long <- joined_df %>%
     pivot_longer(
-      cols = all_of(impact_cols),
+      cols = all_of(IMPACT_NAMES),
       names_to = "impacte",
       values_to = "valor"
     ) %>%
@@ -490,21 +547,19 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
     return(plotly_empty() %>% layout(title = "Sense dades per aquesta selecció"))
   }
   
+  
+  # 4. Creació del títol de l'eix amb unitat
+  label_eix_y <- if(unitat_text != "") paste0("Contribució (", unitat_text, ")") else "Contribució"
+  
   # 3. Gràfic amb escala de 0.05 i ordre correcte
   p <- ggplot(df_top, aes(x = ingredient, y = valor)) +
     geom_col(fill = bar_color, width = 0.7) + 
     coord_flip() +
-    scale_y_continuous(
-      # Forçem els salts de 0.05
-      breaks = seq(0, max(df_top$valor, na.rm = TRUE) * 1.2, by = 0.05),
-      # CORRECCIÓ: Forçem format decimal amb 2 o 3 dígits, sense notació científica
-      labels = scales::label_number(accuracy = 0.01),
-      expand = expansion(mult = c(0, 0.15))
-    ) +
+    scale_y_continuous(labels = scales::label_number(accuracy = 0.0001)) +
     labs(
       title = paste0("Top ", n, " ingredients – ", diet_sel),
       subtitle = paste("Impacte:", impacte_sel),
-      y = "Contribució (Impacte)",
+      y = label_eix_y,
       x = ""
     ) +
     theme_minimal() +
@@ -637,43 +692,57 @@ plot_diferencies_AB <- function(A_data, B_data, imp) {
 ########################## PERCETNANGE EMISSIONS ##################################
 plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, impacte_sel) {
   
-  # 1. Unim dades per país d'origen
+  # 1. Unim dades 
   df_unificat <- df_dietes %>%
     left_join(transport_df, by = "origen", suffix = c(".diet", ".transp"))
   
-  # 2. Identifiquem les columnes dinàmiques
+  # 2. Identifiquem columnes
   col_diet <- paste0(impacte_sel, ".diet")
   col_transp <- paste0(impacte_sel, ".transp")
   
-  # 3. Calculem la descomposició per a cada dieta
+  # 3. Calculem descomposició
   df_resum <- df_unificat %>%
     group_by(diet) %>%
     summarise(
-      # Calculem el transport i passem de Tones a Kg (/1000)
-      Total_Transport_Kg = sum((!!sym(col_transp) * prop) / 1000, na.rm = TRUE),
-      # El total acumulat ja el tenim a la base de dades
-      Total_Acumulat = sum(!!sym(col_diet), na.rm = TRUE),
-      .groups = 'drop'
+      # Operació: Sumatori(Impacte * Proporció) i després dividir tot el bloc per 1000
+      Transport = sum(!!sym(col_transp) * prop, na.rm = TRUE) / 1000,
+      
+      print("Transport Clacul"),
+      print(Transport),
+      
+      
+      # El total de la dieta es manté igual (ja ve calculat per ingredient al teu df)
+      Total = sum(!!sym(col_diet), na.rm = TRUE),
+      .groups = 'drop',
+      
+      print("Total Calcul"),
+      print(Total),
+      
     ) %>%
     mutate(
-      # Aïllem el valor de l'ingredient restant el transport convertit
-      Total_Ingredient = Total_Acumulat - Total_Transport_Kg
+      Ingredient = Total - Transport,
+      print("Ingredient Restaaaaaa"),
+      print(Ingredient),
+      # Seguretat: si el transport calculat és major al total per arrodoniment, posem 0
+      Ingredient = pmax(0, Ingredient) 
     ) %>%
-    # Format per a ggplot
-    select(diet, Total_Ingredient, Total_Transport_Kg) %>%
-    pivot_longer(cols = c("Impacte Ingredients", "Impacte Transport"), 
+    select(diet, Ingredient, Transport) %>%
+    pivot_longer(cols = c("Ingredient", "Transport"), 
                  names_to = "Origen", values_to = "Valor")
   
   # 4. Gràfic de barres apilades
   p <- ggplot(df_resum, aes(x = diet, y = Valor, fill = Origen)) +
     geom_col(width = 0.6) +
-    values = c("Impacte Ingredients" = "#2c3e50", "Impacte Transport" = "#e67e22") +
-              labels = c("Impacte Ingredient", "Impacte Transport (Convertit a Kg)") +
-    scale_y_continuous(labels = scales::label_number(accuracy = 0.0001)) +
+    scale_fill_manual(values = c("Ingredient" = "#2c3e50", "Transport" = "#e67e22")) +
+    scale_y_continuous(
+      labels = scales::label_number(accuracy = 0.0001),
+      # Escala dinàmica: posem marques cada 0.05 o 0.1 per evitar bloquejos si el valor és gran
+      expand = expansion(mult = c(0, 0.1)) 
+    ) +
     labs(
-      title = paste("Descomposició d'Impacte:", toupper(gsub("_", " ", impacte_sel))),
+      title = paste("Desglossament:", toupper(gsub("_", " ", impacte_sel))),
       x = "Dieta", 
-      y = "Impacte (Kg CO2 eq o unitat equivalent)", 
+      y = "Impacte (Kg o unitat eq.)", 
       fill = "Origen"
     ) +
     theme_minimal() +

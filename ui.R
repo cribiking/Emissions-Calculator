@@ -1,44 +1,9 @@
+
+
 ui <- dashboardPage(
   # 1. HEADER AMB INPUTS (Maximitzem espai lateral)
-  header = dashboardHeader(
-    title = "", titleWidth = 0,
-    
-    tags$li(class = "dropdown",
-            style = "width: 100vw; height: 220px; min-height:220px; display: flex; align-items: center; justify-content: space-around; padding: 0 20px;",
-            
-            # BLOC 1: Fitxers (Columna)
-            div(style = "display: flex; flex-direction: column; gap: 5px; justify-content: center; padding: 20px;",
-                fileInput("file_env", NULL, buttonLabel = "Ambiental", accept = ".xlsx", width = "200px"),
-                fileInput("file_diets", NULL, buttonLabel = "Dietes", accept = ".xlsx", width = "200px"),
-                fileInput("file_transport", NULL, buttonLabel = "Transport", accept = ".xlsx", width = "200px")
-            ),
-            
-            # BLOC NOU: Selecció de Pas (Step) - Integrat al Header
-            div(style = "display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 180px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;",
-                h4("Etapa / Pas", style = "margin: 0; color: white; font-weight: bold; font-size: 14px;"),
-                uiOutput("steps_ui") 
-            ),
-            
-            
-            # BLOC 2: Impactes (Columna Centrada)
-            div(style = "display: flex; flex-direction: column; justify-content: center; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;",
-                checkboxGroupInput("impactes_sel", NULL, 
-                                   choices = c("Climate Change" = "climate_change", "Land Use" = "land_use", 
-                                               "Water Use" = "water_use", "Eutrophication" = "eutrophication", 
-                                               "Acidification" = "acidification", "Particulate Matter" = "particulate_matter"),
-                                   selected = c("climate_change", "land_use"),
-                                   inline = FALSE)
-            ),
-            
-            # BLOC 3: Opcions i Botó (Centrat verticalment)
-            div(style = "display: flex; flex-direction: column; align-items: center; gap: 15px; justify-content: center;",
-                div(style = "margin-top: -10px;", # Correcció d'alineació per al checkbox
-                    checkboxInput("mostrar_per_animal", "Per animal", value = FALSE)
-                ),
-                downloadButton("download_summary", "Excel", class = "btn-success")
-            )
-    )
-  ),
+  header = dashboardHeader(title = "Estudi d'Emissions", titleWidth = 300),
+  
   # 2. SIDEBAR DESACTIVAT (Per guanyar el 100% de l'ample)
   sidebar = dashboardSidebar(disable = TRUE),
   
@@ -47,36 +12,84 @@ ui <- dashboardPage(
     tags$head(
       includeCSS("www/style.css"),
       tags$style(HTML("
-        .main-header .navbar-custom-menu { float: left !important; }
-        .main-header .logo { width: 200px !important; }
-        .navbar-static-top { margin-left: 200px !important; }
-        .shiny-input-container { margin-bottom: 0 !important; }
+        /* Ajustos per a que el contingut ocupi tot l'ample i es vegi net */
+        .content-wrapper { background-color: #ecf0f5; }
+        .box-header { background: #f4f4f4; border-bottom: 1px solid #ddd; }
+        .shiny-input-container { margin-bottom: 10px !important; }
       "))
     ),
     
-    div(style = "padding : 5px;",
+    div(style = "padding : 1px;",
+        
+        # --- NOU BLOC DE CONTROL SUPERIOR (SUBSTITUEIX EL HEADER) ---
+        fluidRow(
+          box(title = span(icon("sliders-h"), " Configuració General i Càrrega de Dades"), 
+              width = 12, status = "primary", solidHeader = TRUE,
+              
+              fluidRow(
+                # BLOC 1: Fitxers
+                column(4,
+                       div(style = "padding: 5px; border-right: 1px solid #eee; display:flex ; flex-direction:column; align-items:center;",
+                         h3(strong("1. Importar Arxius")),
+                         fileInput("file_env", NULL, buttonLabel = "Ambiental", accept = ".xlsx", width = "100%"),
+                         fileInput("file_diets", NULL, buttonLabel = "Dietes", accept = ".xlsx", width = "100%"),
+                         fileInput("file_transport", NULL, buttonLabel = "Transport", accept = ".xlsx", width = "100%")
+                       ),  
+                ),
+                
+                # BLOC 2: Etapa / Pas
+              
+                  column(4,
+                         div(style = "display:flex ; flex-direction:column; align-items:center ; width: 100%;",
+                             h3(strong("2. Selecció d'Etapa")),
+                             uiOutput("steps_ui")
+                        )
+                ),
+                
+                # BLOC 3: Impactes
+                column(4,
+                       div(style = "padding: 10px;border-left: 1px solid #eee;  border-right: 1px solid #eee;display:flex; flex-direction:column; align-items:center;",
+                         h3(strong("3. Impactes Ambientals")),
+                         checkboxGroupInput("impactes_sel", NULL, 
+                                            choices = c("Climate Change" = "climate_change", "Land Use" = "land_use", 
+                                                        "Water Use" = "water_use", "Eutrophication" = "eutrophication_marine", 
+                                                        "Acidification" = "acidification", "Particulate Matter" = "particulate_matter"),
+                                            selected = c("climate_change", "land_use"),
+                                            inline = FALSE)
+                       ),
+                )
+                
+              )
+          )
+        ),
         
         # --- BLOC DE CONFIGURACIÓ AVANÇADA (Col·lapsable) ---
         fluidRow(
-          box(title = "Configuració Avançada, Steps i Overrides", width = 12, 
-              collapsible = TRUE, collapsed = TRUE, status = "warning", icon = icon("cog"),
+          box(title = "Reasignar Origens i Descàrrega de dades (Configuració Avançada)", width = 12, 
+              collapsible = TRUE, collapsed = TRUE, status = "warning",
               fluidRow(
-                column(3, 
+                column(6, 
                        h4("Reassignar orígens"),
-                       selectInput("sel_ingredient", "Ingredient", choices = NULL),
+                       div(style = "background-color: #f8f9fa; border-left: 4px solid #3498db; padding: 10px; margin-bottom: 15px; border-radius: 4px;",
+                           span(icon("info-circle"), style = "color: #3498db; margin-right: 5px;"),
+                           tags$small(style = "color: #5a5a5a;", 
+                                      "S'exclouen els ingredients que només tenen un origen disponible.")
+                       ),
+                       uiOutput("sel_ingredient_ui"), 
                        uiOutput("sel_origen_ui"),
-                       actionButton("apply_override", "Aplica", class = "btn-primary btn-block"),
+                       hr(),
+                       actionButton("apply_override", "Aplica canvi", class = "btn-primary btn-block"),
                        br(),
-                       actionButton("reset_overrides", "Reset All", class = "btn-danger btn-sm")
-                ),
-                column(6,
-                       conditionalPanel(
-                         condition = "input.mostrar_per_animal == true",
-                         h4("Edita els kg consumits:"),
-                         DTOutput("tbl_kg_edit")
+                       div(align = "center",
+                           actionButton("reset_overrides", "Restablir tot", class = "btn-danger btn-sm")
                        )
-                )
+                ),
+                column(6, align = "center",
+                       h3("Descarregar Excel"),
+                       downloadButton("download_summary", "Exportar a Excel", class = "btn-success btn-block")
+                
               )
+          )     
           )
         ),
         
@@ -147,7 +160,7 @@ ui <- dashboardPage(
                        p("Visualització agregada dels indicadors seleccionats.", style = "margin-left: 10px; color: #7f8c8d;")
                    ),
                    br(),
-                   uiOutput("plot_impacte_AB", height = "900px")
+                   uiOutput("plot_impacte_AB")
           ),
           
           # --- Pestanya Contribució per origen (AMB COLUMNES AL COSTAT) ---
@@ -240,6 +253,8 @@ ui <- dashboardPage(
                    )
           ),
           
+          tabPanel("Distribucio"),
+          
           # --- Pestanya Diferència A - B ---
           tabPanel("Diferència A - B",
                    br(),
@@ -249,14 +264,71 @@ ui <- dashboardPage(
                    uiOutput("plot_diff")
           ),
           
+        
+          
+          # --- Pestanya Percentatge Contribucio Emissio---
+          tabPanel("Desglossament Impacte",
+                   # --- Secció de visualització de gràfics comparatius ---
+                   fluidRow(
+                     column(12,
+                            # Espai on es generaran dinàmicament els gràfics (un per cada impacte seleccionat)
+                            uiOutput("plots_totals_emissio")
+                     )
+                   )
+          ),
+          
           # --- Pestanya Verificació ---
+          
           tabPanel("Verificació d'Ingredients",
                    br(),
                    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #f1c40f;",
                        h4("Integritat de la Base de Dades", style = "font-weight: bold; margin-left: 10px;")),
                    br(),
                    uiOutput("aviso_faltantes_ui")
-          )
+          ),
+          
+          # --- Contribució Total---
+          
+          tabPanel("Contribució Total",
+                   br(),
+                   # Banner de títol amb estil coherent
+                   div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #3498db;",
+                       h4("Anàlisi de Contribució Acumulada: Solució A vs Solució B", 
+                          style = "font-weight: bold; margin-left: 10px;")),
+                   
+                   p("Edita els kg consumits per ajustar l'impacte total segons l'etapa productiva.", 
+                     style = "margin-left: 15px; color: #7f8c8d; font-style: italic;"),
+                   
+                   br(),
+                   
+                   fluidRow(
+                     # Taula d'edició (centrada en una columna de 8)
+                     column(width = 2, offset = 2,
+                            div(style = "background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
+                                display: flex; flex-direction:column; align-items:center",
+                                h5("Consum per Etapa (kg):", style = "font-weight: bold;"),
+                                DTOutput("tbl_kg_edit")
+                            )
+                     )
+                   ),
+                   
+                   br(),
+                   hr(), # Línia separadora
+                   
+                   fluidRow(
+                     # Gràfics de contribució
+                     column(width = 12,
+                            uiOutput("plot_contribucio_total_AB")
+                     )
+                   )
+                   
+                  
+          ),
+          
+          tabPanel("Petjada Ambiental")
+          
+        
+      
         ) # Tanca tabBox
     ) # Tanca div padding
   ) # Tanca body
