@@ -190,7 +190,7 @@ ui <- dashboardPage(
                      column(12, align = "center",
                             selectInput("impacte_top", "Selecciona l'impacte per al Top 5:",
                                         choices = c("climate_change", "land_use", "water_use", 
-                                                    "eutrophication", "acidification", "particulate_matter"),
+                                                    "eutrophication_marine", "acidification", "particulate_matter"),
                                         width = "50%"),
                             
                             # Nota informativa sobre els percentatges petits
