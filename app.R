@@ -17,7 +17,7 @@ carrega_dades_ambientals <- function(path) {
   expect_cols <- c("ingredient", "group", "origen", "default_origen")
   # a més, busquem les columnes d'impacte (acceptem subset)
   impact_cols <- intersect(c("climate_change", "land_use", "water_use",
-                             "eutrophication", "acidification", "particulate_matter"),
+                             "eutrophication_marine", "acidification", "particulate_matter"),
                            names(df))
   missing_cols <- setdiff(expect_cols, names(df))
   if(length(missing_cols) > 0) {
@@ -135,7 +135,7 @@ calcula_solucio_amb_transport <- function(dietes_df, dades_env_df, step_sel, ove
   # Ara fem join amb dietes per obtenir prop i calcular impacte per kg pinso
   # Ens assegurem que tenim totes les columnes d'impacte presents:
   impact_cols <- intersect(c("climate_change", "land_use", "water_use",
-                             "eutrophication", "acidification", "particulate_matter"),
+                             "eutrophication_marine", "acidification", "particulate_matter"),
                            names(effective_rows))
   
   # Si transport_df present, volem sumar impactes de transport per origen
@@ -385,7 +385,7 @@ ui <- fluidPage(
       hr(),
       checkboxGroupInput("impactes_sel", "Impactes a mostrar",
                          choices = c("climate_change", "land_use", "water_use",
-                                     "eutrophication", "acidification", "particulate_matter"),
+                                     "eutrophication_marine", "acidification", "particulate_matter"),
                          selected = c("climate_change", "land_use", "particulate_matter")),
       checkboxInput("mostrar_per_animal", "Mostrar també per kg que alimenta 1 animal tipus", value = FALSE),
       conditionalPanel(
@@ -434,7 +434,7 @@ ui <- fluidPage(
         tabPanel("Top ingredients per dieta",
                  selectInput("impacte_top", "Tria impacte per top ingredients:",
                              choices = c("climate_change", "land_use", "water_use",
-                                         "eutrophication", "acidification", "particulate_matter"),
+                                         "eutrophication_marine", "acidification", "particulate_matter"),
                              selected = "climate_change"),
                  plotlyOutput("plot_topA", height = "600px"),
                  plotlyOutput("plot_topB", height = "600px")
