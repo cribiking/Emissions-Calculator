@@ -46,6 +46,8 @@ server <- function(input, output, session) {
     })
   })
   
+  
+  
   dades_dietes <- reactive({
     req(input$file_diets)
     tryCatch({
@@ -260,6 +262,9 @@ server <- function(input, output, session) {
       
       outputId <- paste0("plot_AB_", imp)
       
+      unitat_actual <- UNITATS[imp]
+      if(is.na(unitat_actual)) unitat_actual <- ""
+      
       output[[outputId]] <- renderPlotly({
      
         A <- resumA_kg()
@@ -278,7 +283,7 @@ server <- function(input, output, session) {
           coord_flip() +
           labs(
             title = paste("Comparació A vs B –", imp),
-            y = "Valor",
+            y = paste("Valor (",unitat_actual,")"),
             x = "Dieta"
           ) +
           theme_minimal()+
@@ -525,26 +530,22 @@ server <- function(input, output, session) {
   ############################################ DISTRIBUCIÓ ############################################ 
   
   output$plot_box_ui <- renderUI({
+    
     req(input$impactes_sel)
     impactes <- input$impactes_sel
-    
-    u <- UNITATS[impactes]
-    if (is.na(u))
     
     # Creem un llistat de gràfics (un per cada impacte)
     plots_list <- lapply(impactes, function(imp) {
       plot_id <- paste0("box_", imp)
       
+      unitat_actual <- UNITATS[imp]
+      if(is.na(unitat_actual)) unitat_actual <- ""
+      
       output[[plot_id]] <- renderPlotly({
-        # Triem dades segons el switch 'Per animal'
-        if(input$mostrar_per_animal) {
-          dfA <- resumA_animal() %>% mutate(solucio = "A")
-          dfB <- resumB_animal() %>% mutate(solucio = "B")
-        } else {
-          dfA <- resumA_kg() %>% mutate(solucio = "A")
-          dfB <- resumB_kg() %>% mutate(solucio = "B")
-        }
-        
+       
+        dfA <- resumA_kg() %>% mutate(solucio = "A")
+        dfB <- resumB_kg() %>% mutate(solucio = "B")
+      
         # Filtrem només per l'impacte actual de la iteració
         both_filtered <- bind_rows(dfA, dfB) %>% 
           filter(impacte == imp)
@@ -555,7 +556,7 @@ server <- function(input, output, session) {
           scale_fill_manual(values = c("A" = "#f8766d", "B" = "#00bfc4")) +
           labs(
             title = paste("Distribució:", imp),
-            y = paste("Valor (", u , ")"), 
+            y = paste("Valor (" ,unitat_actual, ")"), 
             x = "Solució") +
           theme_minimal() +
           theme(legend.position = "none") # La llegenda ja s'entén per l'eix X

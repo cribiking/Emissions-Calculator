@@ -690,11 +690,14 @@ plot_diferencies_AB <- function(A_data, B_data, imp) {
 
 
 ########################## PERCETNANGE EMISSIONS ##################################
+
 plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, impacte_sel) {
   
   # 1. Unim dades 
   df_unificat <- df_dietes %>%
     left_join(transport_df, by = "origen", suffix = c(".diet", ".transp"))
+  
+  View(df_unificat)
   
   # 2. Identifiquem columnes
   col_diet <- paste0(impacte_sel, ".diet")
@@ -707,22 +710,15 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
       # Operació: Sumatori(Impacte * Proporció) i després dividir tot el bloc per 1000
       Transport = sum(!!sym(col_transp) * prop, na.rm = TRUE) / 1000,
       
-      print("Transport Clacul"),
-      print(Transport),
-      
-      
       # El total de la dieta es manté igual (ja ve calculat per ingredient al teu df)
       Total = sum(!!sym(col_diet), na.rm = TRUE),
       .groups = 'drop',
-      
-      print("Total Calcul"),
-      print(Total),
-      
+    
     ) %>%
     mutate(
+      
       Ingredient = Total - Transport,
-      print("Ingredient Restaaaaaa"),
-      print(Ingredient),
+      
       # Seguretat: si el transport calculat és major al total per arrodoniment, posem 0
       Ingredient = pmax(0, Ingredient) 
     ) %>%

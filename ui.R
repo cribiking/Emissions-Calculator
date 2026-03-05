@@ -253,7 +253,12 @@ ui <- dashboardPage(
                    )
           ),
           
-          tabPanel("Distribucio"),
+          tabPanel("Distribucio",
+                   br(),
+                   div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #e74c3c;",
+                       h4("Distribució d'emissions", style = "font-weight: bold; margin-left: 10px;")),
+                   uiOutput("plot_box_ui")
+            ),
           
           # --- Pestanya Diferència A - B ---
           tabPanel("Diferència A - B",
@@ -303,7 +308,7 @@ ui <- dashboardPage(
                    
                    fluidRow(
                      # Taula d'edició (centrada en una columna de 8)
-                     column(width = 2, offset = 2,
+                     column(width = 8, offset = 2,
                             div(style = "background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0px 2px 4px rgba(0,0,0,0.05);
                                 display: flex; flex-direction:column; align-items:center",
                                 h5("Consum per Etapa (kg):", style = "font-weight: bold;"),
