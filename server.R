@@ -115,65 +115,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, "sel_ingredient", choices = ingredients)
   })
   
-  # --- 1. Selector d'Ingredients (Només els que tenen > 1 origen) ---
-  output$sel_ingredient_ui <- renderUI({
-    req(dades_env())
-    
-    df_resum_origens <- origens_per_ingredient(dades_env())
-    
-    # Filtrem ingredients amb múltiples opcions
-    ingredients_amb_opcions <- df_resum_origens %>%
-      filter(lengths(origen) > 1) %>%
-      pull(ingredient) # Pull retorna el vector de noms
-    
-    selectInput("sel_ingredient", 
-                label = "Ingredient:", 
-                choices = ingredients_amb_opcions)
-  })
   
-  # --- 2. Selector d'Orígens (Dinàmic segons l'ingredient triat) ---
-  output$sel_origen_ui <- renderUI({
-    req(input$sel_ingredient, dades_env())
-    
-    # Tornem a cridar la funció resumida
-    df_resum <- origens_per_ingredient(dades_env())
-    
-    # Busquem el vector d'orígens de l'ingredient seleccionat
-    llista_origens <- df_resum %>% 
-      filter(ingredient == input$sel_ingredient) %>% 
-      pull(origen) %>% 
-      unlist() # Convertim la llista de la cel·la en un vector normal
-    
-    selectInput("sel_origen", 
-                label = paste("Orígens per a", input$sel_ingredient), 
-                choices = llista_origens)
-  })
-  
-  # solucions: recalc segons overrides i transport
-  # mantenim una taula reactiva d'overrides: tibble(ingredient, origen_selected)
-  
-  #character() , crea un vector de caracters vuit
-  #Esta definint una taula amb dues columnes: ingredient i origen_selected
-  
-  overrides <- reactiveVal(tibble(ingredient = character(0), origen_selected = character(0)))
-  
-  # Aplica override quan s'apreta el botó 'apply_override' , descrit a la UI
-  observeEvent(input$apply_override, {
-    req(input$sel_ingredient, input$sel_origen)
-    tbl <- overrides()
-    
-    # si existeix ja, actualitza; si no, afegeix
-    if(input$sel_ingredient %in% tbl$ingredient) {
-      tbl$origen_selected[tbl$ingredient == input$sel_ingredient] <- input$sel_origen
-    } else {
-      tbl <- bind_rows(tbl, tibble(ingredient = input$sel_ingredient, origen_selected = input$sel_origen))
-    }
-    overrides(tbl)
-    showNotification(paste0("Override aplicat: ", input$sel_ingredient, " -> ", input$sel_origen), type = "message")
-  })
-  
-  # Reset overrides
-  observeEvent(input$reset_overrides, { overrides(tibble(ingredient = character(0), origen_selected = character(0))); showNotification("Overrides reiniciats", type = "message") })
   
   # DOWNLOAD CSV
   
@@ -493,17 +435,17 @@ server <- function(input, output, session) {
     req(solA_joined_transport(), dades_env())
 
     map_df_base <- solA_joined_transport() %>%
-      # Normalitzem text: treure espais i passar a majúscules
-      mutate(ingredient = toupper(trimws(ingredient))) %>%
-      select(ingredient) %>%
-      distinct() %>%
-      left_join(
-        dades_env() %>%
-          mutate(ingredient = toupper(trimws(ingredient))) %>%
-          select(ingredient, origen),
-        by = "ingredient"
-      )
-
+      # 1. Normalitzem text per seguretat (Majúscules i sense espais)
+      mutate(
+        ingredient = toupper(trimws(ingredient)),
+        origen = toupper(trimws(origen))
+      ) %>%
+      # 2. Seleccionem les dues columnes que t'interessen
+      select(ingredient, origen) %>%
+      # 3. Agafem les combinacions úniques (Distinct)
+      distinct()
+    
+    
     df_mapa <- preparar_dades_mapa_full(map_df_base)
     plot_map_final(df_mapa, "Origen ingredients – Solució A")
   })
@@ -513,15 +455,15 @@ server <- function(input, output, session) {
     req(solB_joined_transport(), dades_env())
 
     map_df_base <- solB_joined_transport() %>%
-      mutate(ingredient = toupper(trimws(ingredient))) %>%
-      select(ingredient) %>%
-      distinct() %>%
-      left_join(
-        dades_env() %>%
-          mutate(ingredient = toupper(trimws(ingredient))) %>%
-          select(ingredient, origen),
-        by = "ingredient"
-      )
+      # 1. Normalitzem text per seguretat (Majúscules i sense espais)
+      mutate(
+        ingredient = toupper(trimws(ingredient)),
+        origen = toupper(trimws(origen))
+      ) %>%
+      # 2. Seleccionem les dues columnes que t'interessen
+      select(ingredient, origen) %>%
+      # 3. Agafem les combinacions úniques (Distinct)
+      distinct()
 
     df_mapa <- preparar_dades_mapa_full(map_df_base)
     plot_map_final(df_mapa, "Origen ingredients – Solució B")
@@ -582,15 +524,38 @@ server <- function(input, output, session) {
   output$plot_diff <- renderUI({
     req(input$impactes_sel)
     
-    lapply(input$impactes_sel, function(imp) {
+    # 1. Validació: Si les etapes són idèntiques, mostrem un avís i aturem l'execució
+    if(input$stepA == input$stepB) {
+      return(
+        div(style = "padding: 20px; text-align: center;",
+            h4(icon("exclamation-triangle"), "No hi ha diferències a mostrar", 
+               style = "color: #e67e22; font-weight: bold;"),
+            p("Estàs comparant la mateixa etapa (", strong(input$stepA), "). 
+             Selecciona etapes o orígens diferents per veure la comparativa.")
+        )
+      )
+    }
+    
+    # 2. Generem la llista de gràfics si les etapes són diferents
+    plots <- lapply(input$impactes_sel, function(imp) {
       plot_id <- paste0("diff_", imp)
+      
       output[[plot_id]] <- renderPlotly({
+        # Ens assegurem que tenim les dades resumides
         A <- resumA_kg()
         B <- resumB_kg()
+        
+        # Cridem a la teva funció de global
         plot_diferencies_AB(A, B, imp)
       })
-      plotlyOutput(plot_id, height = "350px")
-    }) %>% do.call(tagList, .)
+      
+      # Embolcall de cada gràfic per mantenir l'estètica de targetes
+      div(style = "margin-bottom: 30px; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);",
+          plotlyOutput(plot_id, height = "450px")
+      )
+    })
+    
+    do.call(tagList, plots)
   })
   
   #---
@@ -710,38 +675,8 @@ server <- function(input, output, session) {
     do.call(tagList, plots_list)
   })
    
-  ################### CRIDA A LA FUNCIO calcula_solucio_amb_transport ####################################
   
-  # solucions calculades (joined) amb transport i overrides
-  
-  solA_joined_transport <- reactive({
-    
-    req(dades_env(), dades_dietes(), transport_df()  ,input$stepA)
-    
-    calculate <- calcula_solucio_amb_transport(dades_dietes(), dades_env(), input$stepA,
-                                               overrides_df = overrides(), transport_df = transport_df(),
-                                               ordre_dietes = ordre_dietes())
-    
-    validate(need(nrow(calculate) > 0, "Solució A (step) no té dades o hi ha un error"))
-    
-    return(calculate)
-  })
-  
-  solB_joined_transport <- reactive({
-    
-    req(dades_env(), dades_dietes(), transport_df() ,input$stepB)
-    
-    calculate <- calcula_solucio_amb_transport(dades_dietes(), dades_env(), input$stepB,
-                                               overrides_df = overrides(), transport_df = transport_df(),
-                                               ordre_dietes = ordre_dietes())
-    
-    validate(need(nrow(calculate) > 0, "Solució B (step) no té dades o hi ha un error"))
-    
-    return(calculate)
-  })
-  
-
-  
+ 
   
   
   #Outputs VISIO GENERAL amb transport
@@ -749,7 +684,8 @@ server <- function(input, output, session) {
   output$tbl_dietes_A <- renderDT({ solA_joined_transport() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
   output$tbl_dietes_B <- renderDT({ solB_joined_transport() %>% distinct(diet) %>% datatable(options = list(pageLength = 10)) })
   
-
+  #---
+  
 
   ################################# # Taula editable per kg per dieta (inicialitzada amb 1 per dieta) ############################
   
@@ -777,7 +713,8 @@ server <- function(input, output, session) {
     tbl$kg_consum[i] <- vnum
     kg_table(tbl)
   })
- 
+  #---
+  
   
   ###### Resum per Animal #######
   
@@ -786,6 +723,7 @@ server <- function(input, output, session) {
   resumA_animal <- reactive({ calcul_contribucio_total_per_animal(solA_joined_transport(), kg_table()) })
   resumB_animal <- reactive({ calcul_contribucio_total_per_animal(solB_joined_transport(), kg_table()) })
   
+  #---
   
   ###################################### CONTRIBUCIO TOTAL #############################################
   
@@ -861,6 +799,148 @@ server <- function(input, output, session) {
     do.call(tagList, plots)
   })
 
+  
+  #---
+  
+  
+  
+  ################################## OVERRIDES #########################################3333
+  
+  
+  # --- 1. Selector d'Ingredients (Només els que tenen > 1 origen) ---
+  output$sel_ingredient_ui <- renderUI({
+    req(dades_env())
+    
+    df_resum_origens <- origens_per_ingredient(dades_env())
+    
+    # Filtrem ingredients amb múltiples opcions
+    ingredients_amb_opcions <- df_resum_origens %>%
+      filter(lengths(origen) > 1) %>%
+      pull(ingredient) # Pull retorna el vector de noms
+    
+    selectInput("sel_ingredient", 
+                label = "Ingredient:", 
+                choices = ingredients_amb_opcions)
+  })
+  
+  # --- 2. Selector d'Orígens (Dinàmic segons l'ingredient triat) ---
+  output$sel_origen_ui <- renderUI({
+    req(input$sel_ingredient, dades_env())
+    
+    # Tornem a cridar la funció resumida
+    df_resum <- origens_per_ingredient(dades_env())
+    
+    # Busquem el vector d'orígens de l'ingredient seleccionat
+    llista_origens <- df_resum %>% 
+      filter(ingredient == input$sel_ingredient) %>% 
+      pull(origen) %>% 
+      unlist() # Convertim la llista de la cel·la en un vector normal
+    
+    selectInput("sel_origen", 
+                label = paste("Orígens per a", input$sel_ingredient), 
+                choices = llista_origens)
+  })
+  
+  
+  # AL aplicar override, reiniciarem la taula que conte els calculs de les emissions totals amb el transport amb els nous paisos
+  #El control de si apliquem o no overrides es fa dins de la funcio de global 'calcula_solucio_amb_transport'
+  observeEvent(input$apply_override, {
+    req(input$sel_ingredient, input$sel_origen)
+    
+    ing <- input$sel_ingredient
+    orig <- input$sel_origen
+    
+    # 1. Llegim el contingut actual del reactiveVal
+    current_overrides <- OVERRIDES()
+    
+    # 2. Creem la nova fila
+    nova_fila <- tibble(ingredient = ing, origen_selected = orig)
+    
+    # 3. Lògica d'actualització:
+    # Si l'ingredient ja existia, l'eliminem primer per evitar duplicats 
+    # i després afegim la nova selecció.
+    updated_overrides <- current_overrides %>%
+      filter(ingredient != ing) %>%
+      bind_rows(nova_fila)
+    
+    # 4. Guardem el nou tibble dins del reactiveVal
+    OVERRIDES(updated_overrides)
+    
+    # Opcional: Print per consola per verificar que s'ha guardat bé
+    print(OVERRIDES())
+    
+    showNotification(
+      paste0("Override aplicat: ", ing, " -> ", orig), 
+      type = "message"
+    )
+  })
+  
+  # Reset OVERRIDES
+  observeEvent(input$reset_overrides, { 
+    
+    # Tornem a posar el tibble buit amb l'estructura de columnes exacta
+    OVERRIDES(tibble(ingredient = character(0), origen_selected = character(0)))
+    
+    showNotification("Overrides eliminats. Recalculant dades inicials...", type = "message") 
+  })
+  
+  
+  
+  #---
+  
+  ################### CRIDA A LA FUNCIO calcula_solucio_amb_transport ####################################
+  
+  # solucions calculades (joined) amb transport i OVERRIDES
+  
+  # Aquesta funció s'executarà automàticament quan:
+  # 1. Canviïn els fitxers carregats
+  # 2. Canviï el 'step' al header
+  # 3. EXECUTIS OVERRIDES(updated_overrides) en el teu observeEvent
+  
+  solA_joined_transport <- reactive({
+    
+    req(dades_env(), dades_dietes(), transport_df()  ,input$stepA)
+    
+    # 2. Fem una crida a OVERRIDES() aquí dins. 
+    # Això crea el "vincle". Quan facis el reset, aquesta funció es despertarà.
+    actual_overrides <- OVERRIDES()
+    
+    
+    calculate <- calcula_solucio_amb_transport(dades_dietes(), 
+                                               dades_env(), 
+                                               input$stepA,
+                                               overrides_df = actual_overrides, 
+                                               transport_df = transport_df(),
+                                               ordre_dietes = ordre_dietes()
+    )
+    
+    validate(need(nrow(calculate) > 0, "Solució A (step) no té dades o hi ha un error"))
+    
+    return(calculate)
+  })
+  
+  solB_joined_transport <- reactive({
+    
+    req(dades_env(), dades_dietes(), transport_df() ,input$stepB)
+    
+    # 2. Fem una crida a OVERRIDES() aquí dins. 
+    # Això crea el "vincle". Quan facis el reset, aquesta funció es despertarà.
+    actual_overrides <- OVERRIDES()
+    
+    calculate <- calcula_solucio_amb_transport(dades_dietes(), 
+                                               dades_env(), 
+                                               input$stepB,
+                                               overrides_df = actual_overrides, 
+                                               transport_df = transport_df(),
+                                               ordre_dietes = ordre_dietes()
+    )
+    
+    validate(need(nrow(calculate) > 0, "Solució B (step) no té dades o hi ha un error"))
+    
+    return(calculate)
+  })
+  
+  
   
   #---------------------------------------
   

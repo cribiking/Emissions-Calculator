@@ -272,7 +272,17 @@ ui <- dashboardPage(
         
           
           # --- Pestanya Percentatge Contribucio Emissio---
+          # --- Pestanya Percentatge Contribucio Emissio---
           tabPanel("Desglossament Impacte",
+                   br(),
+                   # --- BLOC INFORMATIU ---
+                   div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #e67e22; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
+                       h4("Anàlisi de la Provinença de les Emissions", style = "font-weight: bold; color: #2c3e50;"),
+                       p("Aquesta visualització permet identificar quina part de l'impacte ambiental total correspon a la", 
+                         strong("producció dels ingredients"), "(blau fosc) i quina part és conseqüència del", 
+                         strong("transport"), "(taronja) des del seu origen fins al lloc de consum (ES).")
+                   ),
+                   
                    # --- Secció de visualització de gràfics comparatius ---
                    fluidRow(
                      column(12,

@@ -33,6 +33,13 @@ UNITATS <- c(
   "particulate_matter"    = "disease incidence"
 )
 
+OVERRIDES <- reactiveVal(tibble(ingredient = character(0), origen_selected = character(0)))
+
+
+
+
+
+
 # ---------------------------
 # Càrregar Fitxers
 # ---------------------------
@@ -123,30 +130,38 @@ get_default_row_for_ingredient <- function(dades_env_df, ingredient_name) {
 # Si no existeix, fem servir la fila default (default_origen==1) i avisem.
 
 apply_overrides_to_env <- function(dades_env_df, overrides_df) {
-  # overrides_df: tibble(ingredient, origen_selected)
-  # Per a cada override, busquem la fila corresponent i la retornem.
-  out_rows <- list()
+  # 1. Si no hi ha overrides, retornem el df original sense canvis
+  if (is.null(overrides_df) || nrow(overrides_df) == 0) {
+    return(list(df = dades_env_df, msgs = character(0)))
+  }
+  
+  # Creem una còpia de treball
+  res_df <- dades_env_df
   msgs <- character()
+  
+  # 2. Iterem pels overrides seleccionats
   for(i in seq_len(nrow(overrides_df))) {
+    
     ing <- overrides_df$ingredient[i]
     ori_sel <- overrides_df$origen_selected[i]
-    # intentem trobar ingredient+ori_sel
+    
+    # Intentem trobar la fila exacta (ingredient + nou origen)
     row_match <- dades_env_df %>% filter(ingredient == ing, origen == ori_sel)
+    
     if(nrow(row_match) >= 1) {
-      out_rows[[length(out_rows) + 1]] <- row_match[1, ]
+      # Substitució: Eliminem totes les files d'aquest ingredient i posem la nova
+      # (D'aquesta manera ens assegurem que l'ingredient només té 1 origen actiu en el càlcul)
+      res_df <- res_df %>% 
+        filter(ingredient != ing) %>% 
+        bind_rows(row_match[1, ])
+      
     } else {
-      # fallback a default
-      defrow <- get_default_row_for_ingredient(dades_env_df, ing)
-      if(!is.null(defrow)) {
-        out_rows[[length(out_rows) + 1]] <- defrow
-        msgs <- c(msgs, paste0("Per ingredient '", ing, "' no s'ha trobat l'origen '", ori_sel, "'. S'utilitza 'default'."))
-      } else {
-        msgs <- c(msgs, paste0("Per ingredient '", ing, "' no s'han trobat dades ambientals."))
-      }
+      # Fallback si l'origen demanat no existeix a les dades
+      msgs <- c(msgs, paste0("⚠️ '", ing, "': origen '", ori_sel, "' no trobat. Mantinguem dades actuals."))
     }
   }
-  out_df <- bind_rows(out_rows)
-  list(df = out_df, msgs = msgs)
+  
+  list(df = res_df, msgs = msgs)
 }
 
 
@@ -183,48 +198,57 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
   # ingredient, origen, emissions
   if(is.null(overrides_df) || nrow(overrides_df) == 0) {
     
-    # Iteramos sobre cada fila de step_ing (que contiene la combinación ingrediente + dieta)
+  # Iteramos sobre cada fila de step_ing (que contiene la combinación ingrediente + dieta)
+  effective_rows <- map_dfr(seq_len(nrow(step_ing)), function(i) {
+    
+    # Extraemos el ingrediente y la dieta de la fila actual
+    ing_actual  <- step_ing$ingredient[i]
+    diet_actual <- step_ing$diet[i]
+    
+    # Buscamos los datos ambientales para ese ingrediente
+    row <- get_default_row_for_ingredient(dades_env_df, ing_actual)
+    
+    if(is.null(row)) {
+      # Si no hay datos, creamos la fila vacía manteniendo la dieta
+      tibble(
+        ingredient = ing_actual, 
+        diet = diet_actual, 
+        group = NA, 
+        origen = NA
+      )
+    } else { 
+      # Si hay datos, añadimos la columna 'diet' a la fila encontrada
+      row %>% mutate(diet = diet_actual)
+    }
+  })
+    
+  } else { #si hi ha overrides
+    
+    # 1. Obtenim la llista d'ingredients amb l'origen JA triat (el de override o el default)
+    # Usarem la funció apply_overrides_to_env que hem arreglat abans
+    env_preparat <- apply_overrides_to_env(dades_env_df, overrides_df)$df
+    
+    # 2. Ara "mapegem" cada ingredient de la dieta amb la seva fila corresponent a env_preparat
+    # Així mantenim la columna 'diet' correctament per a cada combinació
     effective_rows <- map_dfr(seq_len(nrow(step_ing)), function(i) {
       
-      # Extraemos el ingrediente y la dieta de la fila actual
       ing_actual  <- step_ing$ingredient[i]
       diet_actual <- step_ing$diet[i]
       
-      # Buscamos los datos ambientales para ese ingrediente
-      row <- get_default_row_for_ingredient(dades_env_df, ing_actual)
+      # Busquem la fila dins del nostre env ja filtrat/modificat
+      row <- env_preparat %>% filter(ingredient == ing_actual)
       
-      if(is.null(row)) {
-        # Si no hay datos, creamos la fila vacía manteniendo la dieta
-        tibble(
-          ingredient = ing_actual, 
-          diet = diet_actual, 
-          group = NA, 
-          origen = NA
-        )
-      } else { 
-        # Si hay datos, añadimos la columna 'diet' a la fila encontrada
-        row %>% mutate(diet = diet_actual)
+      if (nrow(row) == 0) {
+        # Fallback per si un ingredient de la dieta no existeix a l'ambiental
+        tibble(ingredient = ing_actual, diet = diet_actual, group = NA, origen = NA)
+      } else {
+        # IMPORTANT: usem [1,] per si de cas hi hagués duplicats, i afegim la dieta
+        row[1, ] %>% mutate(diet = diet_actual)
       }
     })
-    
-  } else {
-    
-    # 1. Obtenemos las filas modificadas
-    res_df <- apply_overrides_to_env(dades_env_df, overrides_df)$df
-    
-    # 2. Primero generamos la tabla por defecto para TODOS los ingredientes per si de cas
-    effective_rows_default <- map_dfr(unique(ing_list_df$ingredient), function(ing) {
-      get_default_row_for_ingredient(dades_env_df, ing)
-    })
-    
-    # 3. Sustituimos los que tienen override
-    effective_rows <- effective_rows_default %>%
-      filter(!(ingredient %in% res_df$ingredient)) %>%
-      bind_rows(res_df)
   }
   
-  
-  #View(effective_rows)
+  View(OVERRIDES())
   
   #necessito adquirir del fitxer transport, els origens que existeixen a effective rows, conjuntament amb les emissions
   
@@ -277,6 +301,8 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
       # Opcional: Si quieres mantener la columna 'prop' en el resultado final, 
       # no la elimines del select.
       select(ingredient, diet, prop, all_of(impact_cols_effective), everything())
+    
+    View(final_df)
     
     return(final_df)
 }
@@ -584,6 +610,8 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
 preparar_dades_mapa_full <- function(map_df) {
   req(map_df)
   
+  View(map_df)
+  
   df_resultat <- map_df %>%
     mutate(
       # Mantenim el codi de 2 lletres (ISO2) 
@@ -697,8 +725,6 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
   df_unificat <- df_dietes %>%
     left_join(transport_df, by = "origen", suffix = c(".diet", ".transp"))
   
-  View(df_unificat)
-  
   # 2. Identifiquem columnes
   col_diet <- paste0(impacte_sel, ".diet")
   col_transp <- paste0(impacte_sel, ".transp")
@@ -726,6 +752,9 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
     pivot_longer(cols = c("Ingredient", "Transport"), 
                  names_to = "Origen", values_to = "Valor")
   
+    unitat_actual <- UNITATS[impacte_sel]
+  if(is.na(unitat_actual)) unitat_actual <- ""
+  
   # 4. Gràfic de barres apilades
   p <- ggplot(df_resum, aes(x = diet, y = Valor, fill = Origen)) +
     geom_col(width = 0.6) +
@@ -738,7 +767,7 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
     labs(
       title = paste("Desglossament:", toupper(gsub("_", " ", impacte_sel))),
       x = "Dieta", 
-      y = "Impacte (Kg o unitat eq.)", 
+      y = paste("Impacte (",unitat_actual,")"), 
       fill = "Origen"
     ) +
     theme_minimal() +
