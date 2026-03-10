@@ -1,9 +1,10 @@
 # --- Paquets essencials per a la interfície i reactivitat ---
+library(rlang)
 library(shiny)
 library(shinydashboard)
 library(DT)             # Per a les taules interactives (tbl_kg_edit, etc.)
 library(plotly)         # Per als gràfics dinàmics (barres, boxplots)
-
+# 
 # --- Paquets per al processament de dades ---
 library(tidyverse)      # Inclou dplyr, tidyr, ggplot2, etc.
 library(readxl)         # Per llegir els fitxers .xlsx
@@ -16,7 +17,7 @@ library(highcharter)    # Per al mapa d'orígens (utilitza worldgeojson intern)
 
 
 
-############ VARIABLE GLOBAL #####################
+############ GLOBAL VARIABLES  #####################
 
 
 IMPACT_NAMES <- c("climate_change", "land_use", "water_use", 
@@ -36,6 +37,18 @@ UNITATS <- c(
 OVERRIDES <- reactiveVal(tibble(ingredient = character(0), origen_selected = character(0)))
 
 
+
+# Al teu fitxer Global.R o a l'inici de l'app
+colors_paisos <- c(
+  "ES"  = "#2c3e50", # Blau fosc (Espanya / RER)
+  "FR"  = "#3498db", # Blau clar
+  "DE"  = "#e67e22", # Taronja
+  "NL"  = "#f1c40f", # Groc
+  "BR"  = "#27ae60", # Verd
+  "USA" = "#c0392b", # Vermell
+  "RER" = "#2c3e50", # Mateix que ES si vols coherència
+  "Altres" = "#95a5a6" # Gris per a la resta
+)
 
 
 
@@ -248,7 +261,7 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
     })
   }
   
-  View(OVERRIDES())
+  #View(OVERRIDES())
   
   #necessito adquirir del fitxer transport, els origens que existeixen a effective rows, conjuntament amb les emissions
   
@@ -302,7 +315,7 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
       # no la elimines del select.
       select(ingredient, diet, prop, all_of(impact_cols_effective), everything())
     
-    View(final_df)
+    #View(final_df)
     
     return(final_df)
 }
@@ -432,7 +445,7 @@ plot_composicio <- function(joined_df, ordre_dietes = NULL) {
   
   # 3. Creamos el gráfico usando 'ingredient' para el color (fill)
   p <- ggplot(df, aes(x = diet, y = prop, fill = ingredient)) +
-    geom_col(color = "white", size = 0.1) + # Línea fina para separar bloques
+    geom_col(color = "white", linewidth = 0.1, width = 0.5) + # Línea fina para separar bloques
     coord_flip() +
     scale_y_continuous(
       breaks = seq(0, 1, by = 0.25),
@@ -610,7 +623,7 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
 preparar_dades_mapa_full <- function(map_df) {
   req(map_df)
   
-  View(map_df)
+  #View(map_df)
   
   df_resultat <- map_df %>%
     mutate(
@@ -766,7 +779,7 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
     ) +
     labs(
       title = paste("Desglossament:", toupper(gsub("_", " ", impacte_sel))),
-      x = "Dieta", 
+      x = "", 
       y = paste("Impacte (",unitat_actual,")"), 
       fill = "Origen"
     ) +
@@ -779,18 +792,6 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
 #######
 # Arrays de dades
 #######
-
-# Al teu fitxer Global.R o a l'inici de l'app
-colors_paisos <- c(
-  "ES"  = "#2c3e50", # Blau fosc (Espanya / RER)
-  "FR"  = "#3498db", # Blau clar
-  "DE"  = "#e67e22", # Taronja
-  "NL"  = "#f1c40f", # Groc
-  "BR"  = "#27ae60", # Verd
-  "USA" = "#c0392b", # Vermell
-  "RER" = "#2c3e50", # Mateix que ES si vols coherència
-  "Altres" = "#95a5a6" # Gris per a la resta
-)
 
 
 
