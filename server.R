@@ -408,15 +408,14 @@ server <- function(input, output, session) {
         scale_y_continuous(labels = scales::label_scientific(digits = 2))
     }
 
-    plots_A <- lapply(input$impactes_sel, function(imp) {
-      crear_plot_origen(solA_joined_transport(), imp, "Solució A")
-    })
+    plots_intercalats <- unlist(lapply(input$impactes_sel, function(imp) {
+      list(
+        crear_plot_origen(solA_joined_transport(), imp, "Solució A"),
+        crear_plot_origen(solB_joined_transport(), imp, "Solució B")
+      )
+    }), recursive = FALSE)
 
-    plots_B <- lapply(input$impactes_sel, function(imp) {
-      crear_plot_origen(solB_joined_transport(), imp, "Solució B")
-    })
-
-    Filter(Negate(is.null), c(plots_A, plots_B))
+    Filter(Negate(is.null), plots_intercalats)
   })
 
   output$download_origen <- downloadHandler(
@@ -525,7 +524,38 @@ server <- function(input, output, session) {
     diets_A <- solA_joined_transport() %>% pull(diet) %>% unique()
     diets_B <- solB_joined_transport() %>% pull(diet) %>% unique()
 
-    plots_A <- lapply(diets_A, function(d) {
+    diets_comunes <- intersect(diets_A, diets_B)
+
+    plots_intercalats <- unlist(lapply(diets_comunes, function(d) {
+      list(
+        plot_topN_ingredients_per_dieta_gg(
+          joined_df = solA_joined_transport(),
+          diet_sel = d,
+          impacte_sel = input$impacte_top,
+          n = 5,
+          per_animal = input$mostrar_per_animal,
+          kg_table = kg_table(),
+          bar_color = "#2c3e50",
+          unitat_text = u
+        ),
+        plot_topN_ingredients_per_dieta_gg(
+          joined_df = solB_joined_transport(),
+          diet_sel = d,
+          impacte_sel = input$impacte_top,
+          n = 5,
+          per_animal = input$mostrar_per_animal,
+          kg_table = kg_table(),
+          bar_color = "#95a5a6",
+          unitat_text = u
+        )
+      )
+    }), recursive = FALSE)
+
+    # Afegim dietes que només existeixin en una solució al final, mantenint consistència.
+    diets_nom_A <- setdiff(diets_A, diets_comunes)
+    diets_nom_B <- setdiff(diets_B, diets_comunes)
+
+    plots_extra_A <- lapply(diets_nom_A, function(d) {
       plot_topN_ingredients_per_dieta_gg(
         joined_df = solA_joined_transport(),
         diet_sel = d,
@@ -538,7 +568,7 @@ server <- function(input, output, session) {
       )
     })
 
-    plots_B <- lapply(diets_B, function(d) {
+    plots_extra_B <- lapply(diets_nom_B, function(d) {
       plot_topN_ingredients_per_dieta_gg(
         joined_df = solB_joined_transport(),
         diet_sel = d,
@@ -551,7 +581,7 @@ server <- function(input, output, session) {
       )
     })
 
-    Filter(Negate(is.null), c(plots_A, plots_B))
+    Filter(Negate(is.null), c(plots_intercalats, plots_extra_A, plots_extra_B))
   })
 
   output$download_top <- downloadHandler(
@@ -856,23 +886,20 @@ server <- function(input, output, session) {
   llista_plots_desglossament <- reactive({
     req(solA_joined_transport(), solB_joined_transport(), transport_df(), input$impactes_sel)
 
-    plots_A <- lapply(input$impactes_sel, function(imp) {
-      plot_descomposicio_transport_ingredient_gg(
-        df_dietes = solA_joined_transport(),
-        transport_df = transport_df(),
-        impacte_sel = imp
-      ) + labs(title = paste("Solució A -", toupper(gsub("_", " ", imp))))
-    })
-
-    plots_B <- lapply(input$impactes_sel, function(imp) {
-      plot_descomposicio_transport_ingredient_gg(
-        df_dietes = solB_joined_transport(),
-        transport_df = transport_df(),
-        impacte_sel = imp
-      ) + labs(title = paste("Solució B -", toupper(gsub("_", " ", imp))))
-    })
-
-    c(plots_A, plots_B)
+    unlist(lapply(input$impactes_sel, function(imp) {
+      list(
+        plot_descomposicio_transport_ingredient_gg(
+          df_dietes = solA_joined_transport(),
+          transport_df = transport_df(),
+          impacte_sel = imp
+        ) + labs(title = paste("Solució A -", toupper(gsub("_", " ", imp)))),
+        plot_descomposicio_transport_ingredient_gg(
+          df_dietes = solB_joined_transport(),
+          transport_df = transport_df(),
+          impacte_sel = imp
+        ) + labs(title = paste("Solució B -", toupper(gsub("_", " ", imp))))
+      )
+    }), recursive = FALSE)
   })
   
   # --- Representació dels Totals per Emissió (A vs B) ---
