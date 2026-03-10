@@ -25,6 +25,7 @@ ui <- dashboardPage(
         fluidRow(
           box(title = span(icon("sliders-h"), " Configuració General i Càrrega de Dades"), 
               width = 12, status = "primary", solidHeader = TRUE,
+              collapsible = TRUE, collapsed = TRUE,
               
               fluidRow(
                 # BLOC 1: Fitxers
