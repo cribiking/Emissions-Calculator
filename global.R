@@ -434,7 +434,7 @@ contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE
 # Plots i mapa
 # ---------------------------
 
-plot_composicio <- function(joined_df, ordre_dietes = NULL) {
+plot_composicio_gg <- function(joined_df, ordre_dietes = NULL) {
   # 1. Agrupamos por dieta e ingrediente para sumar las proporciones
   df <- joined_df %>% 
     group_by(diet, ingredient) %>% 
@@ -445,7 +445,7 @@ plot_composicio <- function(joined_df, ordre_dietes = NULL) {
     df <- df %>% mutate(diet = factor(diet, levels = ordre_dietes))
   
   # 3. Creamos el gráfico usando 'ingredient' para el color (fill)
-  p <- ggplot(df, aes(x = diet, y = prop, fill = ingredient)) +
+  ggplot(df, aes(x = diet, y = prop, fill = ingredient)) +
     geom_col(color = "white", linewidth = 0.1, width = 0.5) + # Línea fina para separar bloques
     coord_flip() +
     scale_y_continuous(
@@ -468,9 +468,12 @@ plot_composicio <- function(joined_df, ordre_dietes = NULL) {
       plot.title = element_text(size = 12)
     )
   
-  # 4. Configuramos ggplotly para mostrar el porcentaje real al pasar el ratón
+}
+
+plot_composicio <- function(joined_df, ordre_dietes = NULL) {
+  p <- plot_composicio_gg(joined_df, ordre_dietes)
   # El tooltip mostrará el ingrediente y el valor de 'prop' formateado
-  ggplotly(p, tooltip = c("fill", "y")) 
+  ggplotly(p, tooltip = c("fill", "y"))
 }
 
 
@@ -556,9 +559,9 @@ plot_origen_per_dieta_from_joined <- function(joined_df, impactes_sel = NULL, pe
 ########################################### TOP INGREDIENTS  ########################################### 
 
 
-plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "climate_change", 
-                                            n = 5, per_animal = FALSE, kg_table = NULL, 
-                                            bar_color = "#2c3e50" , unitat_text = "") {
+plot_topN_ingredients_per_dieta_gg <- function(joined_df, diet_sel, impacte_sel = "climate_change", 
+                                               n = 5, per_animal = FALSE, kg_table = NULL, 
+                                               bar_color = "#2c3e50", unitat_text = "") {
   
   # 2. Transformem el dataframe de format "wide" a "long" per poder filtrar per impacte
   # També netegem possibles valors NA que apareixen a la imatge
@@ -583,16 +586,14 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
     mutate(ingredient = factor(ingredient, levels = ingredient[order(valor)]))
   
   # Validació: Si no hi ha dades després del filtre
-  if(nrow(df_top) == 0) {
-    return(plotly_empty() %>% layout(title = "Sense dades per aquesta selecció"))
-  }
+  if(nrow(df_top) == 0) return(NULL)
   
   
   # 4. Creació del títol de l'eix amb unitat
   label_eix_y <- if(unitat_text != "") paste0("Contribució (", unitat_text, ")") else "Contribució"
   
   # 3. Gràfic amb escala de 0.05 i ordre correcte
-  p <- ggplot(df_top, aes(x = ingredient, y = valor)) +
+  ggplot(df_top, aes(x = ingredient, y = valor)) +
     geom_col(fill = bar_color, width = 0.7) + 
     coord_flip() +
     scale_y_continuous(labels = scales::label_number(accuracy = 0.0001)) +
@@ -610,6 +611,26 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
       panel.grid.minor.x = element_line(color = "#f0f0f0")
     )
   
+}
+
+plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "climate_change", 
+                                            n = 5, per_animal = FALSE, kg_table = NULL, 
+                                            bar_color = "#2c3e50", unitat_text = "") {
+  p <- plot_topN_ingredients_per_dieta_gg(
+    joined_df = joined_df,
+    diet_sel = diet_sel,
+    impacte_sel = impacte_sel,
+    n = n,
+    per_animal = per_animal,
+    kg_table = kg_table,
+    bar_color = bar_color,
+    unitat_text = unitat_text
+  )
+
+  if(is.null(p)) {
+    return(plotly_empty() %>% layout(title = "Sense dades per aquesta selecció"))
+  }
+
   ggplotly(p) %>% 
     layout(margin = list(l = 150, r = 50, b = 50, t = 50)) 
 }
@@ -688,6 +709,51 @@ plot_map_final <- function(df, titol) {
     hc_credits(enabled = TRUE, text = "Dades Europa (RER) assignades a Espanya")
 }
 
+# Versió estàtica (ggplot) del mapa per poder exportar imatges combinades.
+plot_map_static_gg <- function(df, titol) {
+  if (is.null(df) || nrow(df) == 0) {
+    return(
+      ggplot() +
+        annotate("text", x = 0, y = 0, label = "Sense dades") +
+        theme_void() +
+        labs(title = titol)
+    )
+  }
+
+  df <- df %>%
+    mutate(iso2 = toupper(trimws(iso2)))
+
+  world <- ggplot2::map_data("world") %>%
+    mutate(
+      region_std = str_to_title(region),
+      iso2 = countrycode(region_std, "country.name", "iso2c", warn = FALSE),
+      iso2 = case_when(
+        region == "usa" ~ "US",
+        region == "uk" ~ "GB",
+        TRUE ~ iso2
+      )
+    )
+
+  world_joined <- world %>%
+    left_join(df %>% select(iso2, value), by = "iso2")
+
+  ggplot(world_joined, aes(x = long, y = lat, group = group, fill = value)) +
+    geom_polygon(color = "grey80", linewidth = 0.1) +
+    coord_quickmap() +
+    scale_fill_gradient(
+      low = "#e8f4fd",
+      high = "#2c3e50",
+      na.value = "#f0f0f0",
+      name = "Ingredients"
+    ) +
+    labs(title = titol, x = NULL, y = NULL) +
+    theme_void() +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      legend.position = "bottom"
+    )
+}
+
 ############################COMPROVACIO INGREDIENTS FALTANTS
 
 comprovar_ingredients_faltants <- function(df_dietes, df_ambientals) {
@@ -709,7 +775,7 @@ comprovar_ingredients_faltants <- function(df_dietes, df_ambientals) {
 
 
 # Gráfico de Diferencias corregido (A - B)
-plot_diferencies_AB <- function(A_data, B_data, imp) {
+plot_diferencies_AB_gg <- function(A_data, B_data, imp) {
   A_f <- A_data %>% filter(impacte == imp) %>% select(diet, valor_A = valor)
   B_f <- B_data %>% filter(impacte == imp) %>% select(diet, valor_B = valor)
   
@@ -719,7 +785,7 @@ plot_diferencies_AB <- function(A_data, B_data, imp) {
       sign = ifelse(diff > 0, "A té més impacte (Pitjor)", "B té més impacte (Pitjor)")
     )
   
-  p <- ggplot(df, aes(x = diet, y = diff, fill = sign, text = diet)) +
+  ggplot(df, aes(x = diet, y = diff, fill = sign, text = diet)) +
     geom_col(color = "white") +
     geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
     coord_flip() +
@@ -727,13 +793,17 @@ plot_diferencies_AB <- function(A_data, B_data, imp) {
     labs(title = paste("Diferència:", toupper(gsub("_"," ",imp))), y = "Valor A - B", x = "Dieta", fill = "Resultat") +
     theme_minimal()
   
+}
+
+plot_diferencies_AB <- function(A_data, B_data, imp) {
+  p <- plot_diferencies_AB_gg(A_data, B_data, imp)
   ggplotly(p, tooltip = c("text", "y"))
 }
 
 
 ########################## PERCETNANGE EMISSIONS ##################################
 
-plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, impacte_sel) {
+plot_descomposicio_transport_ingredient_gg <- function(df_dietes, transport_df, impacte_sel) {
   
   # 1. Unim dades 
   df_unificat <- df_dietes %>%
@@ -770,7 +840,7 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
   if(is.na(unitat_actual)) unitat_actual <- ""
   
   # 4. Gràfic de barres apilades
-  p <- ggplot(df_resum, aes(x = diet, y = Valor, fill = Origen)) +
+  ggplot(df_resum, aes(x = diet, y = Valor, fill = Origen)) +
     geom_col(width = 0.6) +
     scale_fill_manual(values = c("Ingredient" = "#2c3e50", "Transport" = "#e67e22")) +
     scale_y_continuous(
@@ -787,6 +857,10 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
     theme_minimal() +
     theme(text = element_text(face = "bold"), legend.position = "bottom")
   
+}
+
+plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, impacte_sel) {
+  p <- plot_descomposicio_transport_ingredient_gg(df_dietes, transport_df, impacte_sel)
   ggplotly(p)
 }
 

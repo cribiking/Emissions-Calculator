@@ -130,6 +130,9 @@ ui <- dashboardPage(
           # --- Pestanya Composició per dieta ---
           tabPanel("Composició per dieta",
                    br(),
+                 downloadButton("download_comp", "Descarregar gràfics (PNG)",
+                        style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                 br(),
                    div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 5px solid #9b59b6;",
                        h4("Anàlisi de Formulació i Proporcions", style = "font-weight: bold; margin-left: 10px;"),
                        helpText(icon("lightbulb"), "Truc: Fes doble clic en la llegenda per aïllar un ingredient.")
@@ -170,6 +173,9 @@ ui <- dashboardPage(
           # --- Pestanya Contribució per origen (AMB COLUMNES AL COSTAT) ---
           tabPanel("Contribució per origen",
                    br(),
+                   downloadButton("download_origen", "Descarregar gràfics (PNG)",
+                                  style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                   br(),
                    fluidRow(
                      column(6, 
                             style = "border-right: 1px solid #ddd; padding-right: 25px;",
@@ -188,6 +194,9 @@ ui <- dashboardPage(
           
           # --- Pestanya Top ingredients ---
           tabPanel("Top ingredients",
+                   br(),
+                   downloadButton("download_top", "Descarregar gràfics (PNG)",
+                                  style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
                    br(),
                    # Selector d'impacte centrat
                    fluidRow(
@@ -230,6 +239,9 @@ ui <- dashboardPage(
           # --- Pestanya Mapa d'orígens ---
           tabPanel("Mapa d'orígens",
                    br(),
+                   downloadButton("download_mapes", "Descarregar mapes (PNG)",
+                                  style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                   br(),
                    # Nota informativa millorada en català
                    div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 8px; border-left: 6px solid #3498db; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
                        span(icon("info-circle"), style = "color: #3498db; margin-right: 10px; font-size: 18px;"),
@@ -259,6 +271,9 @@ ui <- dashboardPage(
           
           tabPanel("Distribucio",
                    br(),
+                 downloadButton("download_distribucio", "Descarregar gràfics (PNG)",
+                        style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                 br(),
                    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #e74c3c;",
                        h4("Distribució d'emissions", style = "font-weight: bold; margin-left: 10px;")),
                    uiOutput("plot_box_ui")
@@ -267,6 +282,9 @@ ui <- dashboardPage(
           # --- Pestanya Diferència A - B ---
           tabPanel("Diferència A - B",
                    br(),
+                 downloadButton("download_diff", "Descarregar gràfics (PNG)",
+                        style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                 br(),
                    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #e74c3c;",
                        h4("Comparativa Directa: Diferència d'Impacte (A - B)", style = "font-weight: bold; margin-left: 10px;")),
                    p("Valors positius = A pitjor. Valors negatius = B pitjor.", style = "margin-left: 15px; color: #7f8c8d; font-style: italic;"),
@@ -279,6 +297,9 @@ ui <- dashboardPage(
           # --- Pestanya Percentatge Contribucio Emissio---
           tabPanel("Desglossament Impacte",
                    br(),
+                 downloadButton("download_desglossament", "Descarregar gràfics (PNG)",
+                        style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                 br(),
                    # --- BLOC INFORMATIU ---
                    div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #e67e22; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
                        h4("Anàlisi de la Provinença de les Emissions", style = "font-weight: bold; color: #2c3e50;"),
@@ -310,6 +331,9 @@ ui <- dashboardPage(
           
           tabPanel("Contribució Total",
                    br(),
+                 downloadButton("download_contrib_total", "Descarregar gràfics (PNG)",
+                        style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                 br(),
                    # Banner de títol amb estil coherent
                    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #3498db;",
                        h4("Anàlisi de Contribució Acumulada: Solució A vs Solució B", 

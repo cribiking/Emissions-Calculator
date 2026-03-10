@@ -167,9 +167,33 @@ server <- function(input, output, session) {
   #---
   
   ########################################### COMPOSICIO PER DIETA #########################################
+
+  llista_plots_composicio <- reactive({
+    req(solA_joined_transport(), solB_joined_transport(), ordre_dietes())
+
+    list(
+      plot_composicio_gg(solA_joined_transport(), ordre_dietes = ordre_dietes()) +
+        labs(title = "Estructura Solució A"),
+      plot_composicio_gg(solB_joined_transport(), ordre_dietes = ordre_dietes()) +
+        labs(title = "Estructura Solució B")
+    )
+  })
   
   output$plot_comp_A <- renderPlotly({ plot_composicio(solA_joined_transport(), ordre_dietes = ordre_dietes()) })
   output$plot_comp_B <- renderPlotly({ plot_composicio(solB_joined_transport(), ordre_dietes = ordre_dietes()) })
+
+  output$download_comp <- downloadHandler(
+    filename = function() {
+      paste0("report_composicio_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      exportar_llista_grafics(
+        llista_plots = llista_plots_composicio(),
+        file_path = file,
+        n_cols = 1
+      )
+    }
+  )
   
   #---
   
@@ -356,6 +380,60 @@ server <- function(input, output, session) {
     })
     do.call(tagList, plots_B)
   })
+
+  llista_plots_origen <- reactive({
+    req(input$impactes_sel, solA_joined_transport(), solB_joined_transport())
+
+    crear_plot_origen <- function(df_joined, impacte_sel, etiqueta_solucio) {
+      df_plot <- contribucio_per_origen_from_joined(df_joined) %>%
+        filter(impacte == impacte_sel)
+
+      if (nrow(df_plot) == 0 || all(is.na(df_plot$valor))) return(NULL)
+
+      unitat_actual <- UNITATS[impacte_sel]
+      if (is.na(unitat_actual)) unitat_actual <- ""
+
+      ggplot(df_plot, aes(x = diet, y = valor, fill = origen)) +
+        geom_col(color = "white", linewidth = 0.2) +
+        scale_fill_manual(values = colors_paisos) +
+        coord_flip() +
+        labs(
+          title = paste(etiqueta_solucio, "-", toupper(gsub("_", " ", impacte_sel))),
+          y = paste("Valor (", unitat_actual, ")"),
+          x = "Etapa Dieta",
+          fill = "Origen"
+        ) +
+        theme_minimal() +
+        theme(text = element_text(face = "bold")) +
+        scale_y_continuous(labels = scales::label_scientific(digits = 2))
+    }
+
+    plots_A <- lapply(input$impactes_sel, function(imp) {
+      crear_plot_origen(solA_joined_transport(), imp, "Solució A")
+    })
+
+    plots_B <- lapply(input$impactes_sel, function(imp) {
+      crear_plot_origen(solB_joined_transport(), imp, "Solució B")
+    })
+
+    Filter(Negate(is.null), c(plots_A, plots_B))
+  })
+
+  output$download_origen <- downloadHandler(
+    filename = function() {
+      paste0("report_origen_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      plots <- llista_plots_origen()
+      validate(need(length(plots) > 0, "No hi ha gràfics disponibles per exportar."))
+
+      exportar_llista_grafics(
+        llista_plots = plots,
+        file_path = file,
+        n_cols = 2
+      )
+    }
+  )
   
   #---
   
@@ -437,6 +515,60 @@ server <- function(input, output, session) {
     })
     do.call(tagList, plots)
   })
+
+  llista_plots_top <- reactive({
+    req(solA_joined_transport(), solB_joined_transport(), input$impacte_top, kg_table())
+
+    u <- UNITATS[input$impacte_top]
+    if (is.na(u)) u <- ""
+
+    diets_A <- solA_joined_transport() %>% pull(diet) %>% unique()
+    diets_B <- solB_joined_transport() %>% pull(diet) %>% unique()
+
+    plots_A <- lapply(diets_A, function(d) {
+      plot_topN_ingredients_per_dieta_gg(
+        joined_df = solA_joined_transport(),
+        diet_sel = d,
+        impacte_sel = input$impacte_top,
+        n = 5,
+        per_animal = input$mostrar_per_animal,
+        kg_table = kg_table(),
+        bar_color = "#2c3e50",
+        unitat_text = u
+      )
+    })
+
+    plots_B <- lapply(diets_B, function(d) {
+      plot_topN_ingredients_per_dieta_gg(
+        joined_df = solB_joined_transport(),
+        diet_sel = d,
+        impacte_sel = input$impacte_top,
+        n = 5,
+        per_animal = input$mostrar_per_animal,
+        kg_table = kg_table(),
+        bar_color = "#95a5a6",
+        unitat_text = u
+      )
+    })
+
+    Filter(Negate(is.null), c(plots_A, plots_B))
+  })
+
+  output$download_top <- downloadHandler(
+    filename = function() {
+      paste0("report_top_ingredients_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      plots <- llista_plots_top()
+      validate(need(length(plots) > 0, "No hi ha gràfics disponibles per exportar."))
+
+      exportar_llista_grafics(
+        llista_plots = plots,
+        file_path = file,
+        n_cols = 2
+      )
+    }
+  )
   
   
   #---
@@ -480,44 +612,91 @@ server <- function(input, output, session) {
     df_mapa <- preparar_dades_mapa_full(map_df_base)
     plot_map_final(df_mapa, "Origen ingredients – Solució B")
   })
+
+  llista_plots_mapes <- reactive({
+    req(solA_joined_transport(), solB_joined_transport(), dades_env())
+
+    map_df_base_A <- solA_joined_transport() %>%
+      mutate(
+        ingredient = toupper(trimws(ingredient)),
+        origen = toupper(trimws(origen))
+      ) %>%
+      select(ingredient, origen) %>%
+      distinct()
+
+    map_df_base_B <- solB_joined_transport() %>%
+      mutate(
+        ingredient = toupper(trimws(ingredient)),
+        origen = toupper(trimws(origen))
+      ) %>%
+      select(ingredient, origen) %>%
+      distinct()
+
+    df_mapa_A <- preparar_dades_mapa_full(map_df_base_A)
+    df_mapa_B <- preparar_dades_mapa_full(map_df_base_B)
+
+    list(
+      plot_map_static_gg(df_mapa_A, "Origen ingredients - Solució A"),
+      plot_map_static_gg(df_mapa_B, "Origen ingredients - Solució B")
+    )
+  })
+
+  output$download_mapes <- downloadHandler(
+    filename = function() {
+      paste0("report_mapes_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      exportar_llista_grafics(
+        llista_plots = llista_plots_mapes(),
+        file_path = file,
+        n_cols = 2
+      )
+    }
+  )
   
   ############################################ DISTRIBUCIÓ ############################################ 
+
+  llista_plots_distribucio <- reactive({
+    req(input$impactes_sel, resumA_kg(), resumB_kg())
+
+    dfA <- resumA_kg() %>% mutate(solucio = "A")
+    dfB <- resumB_kg() %>% mutate(solucio = "B")
+
+    lapply(input$impactes_sel, function(imp) {
+      unitat_actual <- UNITATS[imp]
+      if (is.na(unitat_actual)) unitat_actual <- ""
+
+      both_filtered <- bind_rows(dfA, dfB) %>%
+        filter(impacte == imp)
+
+      ggplot(both_filtered, aes(x = solucio, y = valor, fill = solucio)) +
+        geom_boxplot(alpha = 0.7, outlier.colour = "red") +
+        geom_jitter(width = 0.1, alpha = 0.3) +
+        scale_fill_manual(values = c("A" = "#f8766d", "B" = "#00bfc4")) +
+        labs(
+          title = paste("Distribució:", toupper(gsub("_", " ", imp))),
+          y = paste("Valor (", unitat_actual, ")"),
+          x = "Solució"
+        ) +
+        theme_minimal() +
+        theme(legend.position = "none")
+    })
+  })
   
   output$plot_box_ui <- renderUI({
-    
-    req(input$impactes_sel)
+    req(llista_plots_distribucio(), input$impactes_sel)
+
+    plots_obj <- llista_plots_distribucio()
     impactes <- input$impactes_sel
-    
-    # Creem un llistat de gràfics (un per cada impacte)
-    plots_list <- lapply(impactes, function(imp) {
+
+    plots_list <- lapply(seq_along(plots_obj), function(i) {
+      imp <- impactes[i]
       plot_id <- paste0("box_", imp)
-      
-      unitat_actual <- UNITATS[imp]
-      if(is.na(unitat_actual)) unitat_actual <- ""
-      
+
       output[[plot_id]] <- renderPlotly({
-       
-        dfA <- resumA_kg() %>% mutate(solucio = "A")
-        dfB <- resumB_kg() %>% mutate(solucio = "B")
-      
-        # Filtrem només per l'impacte actual de la iteració
-        both_filtered <- bind_rows(dfA, dfB) %>% 
-          filter(impacte == imp)
-        
-        p <- ggplot(both_filtered, aes(x = solucio, y = valor, fill = solucio)) +
-          geom_boxplot(alpha = 0.7, outlier.colour = "red") +
-          geom_jitter(width = 0.1, alpha = 0.3) + # Opcional: per veure els punts individuals
-          scale_fill_manual(values = c("A" = "#f8766d", "B" = "#00bfc4")) +
-          labs(
-            title = paste("Distribució:", toupper(gsub("_"," ",imp))),
-            y = paste("Valor (" ,unitat_actual, ")"), 
-            x = "Solució") +
-          theme_minimal() +
-          theme(legend.position = "none") # La llegenda ja s'entén per l'eix X
-        
-        ggplotly(p)
+        ggplotly(plots_obj[[i]])
       })
-      
+
       # Cada gràfic va dins d'un contenidor amb espaiat
       div(style = "margin-bottom: 30px; padding: 10px; border: 1px solid #eee; border-radius: 5px; background: white;",
           plotlyOutput(plot_id, height = "400px")
@@ -526,11 +705,36 @@ server <- function(input, output, session) {
     
     do.call(tagList, plots_list)
   })
+
+  output$download_distribucio <- downloadHandler(
+    filename = function() {
+      paste0("report_distribucio_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      exportar_llista_grafics(
+        llista_plots = llista_plots_distribucio(),
+        file_path = file,
+        n_cols = 2
+      )
+    }
+  )
   
   #---
   
   
   ############################################ DIFERENCIA DIETA A-B ############################################ 
+
+  llista_plots_diff <- reactive({
+    req(input$impactes_sel, resumA_kg(), resumB_kg())
+    validate(need(input$stepA != input$stepB, "No hi ha diferències a exportar si compares la mateixa etapa."))
+
+    A <- resumA_kg()
+    B <- resumB_kg()
+
+    lapply(input$impactes_sel, function(imp) {
+      plot_diferencies_AB_gg(A, B, imp)
+    })
+  })
   
   # --- COMPARATIVA DE DIFERENCIAS (A - B) ---
   output$plot_diff <- renderUI({
@@ -569,6 +773,22 @@ server <- function(input, output, session) {
     
     do.call(tagList, plots)
   })
+
+  output$download_diff <- downloadHandler(
+    filename = function() {
+      paste0("report_diferencies_AB_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      plots <- llista_plots_diff()
+      validate(need(length(plots) > 0, "No hi ha gràfics disponibles per exportar."))
+
+      exportar_llista_grafics(
+        llista_plots = plots,
+        file_path = file,
+        n_cols = 2
+      )
+    }
+  )
   
   #---
   
@@ -632,6 +852,28 @@ server <- function(input, output, session) {
   
   
   ################################# PERCETNANGE EMISSIONS ##################################
+
+  llista_plots_desglossament <- reactive({
+    req(solA_joined_transport(), solB_joined_transport(), transport_df(), input$impactes_sel)
+
+    plots_A <- lapply(input$impactes_sel, function(imp) {
+      plot_descomposicio_transport_ingredient_gg(
+        df_dietes = solA_joined_transport(),
+        transport_df = transport_df(),
+        impacte_sel = imp
+      ) + labs(title = paste("Solució A -", toupper(gsub("_", " ", imp))))
+    })
+
+    plots_B <- lapply(input$impactes_sel, function(imp) {
+      plot_descomposicio_transport_ingredient_gg(
+        df_dietes = solB_joined_transport(),
+        transport_df = transport_df(),
+        impacte_sel = imp
+      ) + labs(title = paste("Solució B -", toupper(gsub("_", " ", imp))))
+    })
+
+    c(plots_A, plots_B)
+  })
   
   # --- Representació dels Totals per Emissió (A vs B) ---
   # --- Representació dels Totals per Emissió (A vs B) ---
@@ -686,6 +928,19 @@ server <- function(input, output, session) {
     
     do.call(tagList, plots_list)
   })
+
+  output$download_desglossament <- downloadHandler(
+    filename = function() {
+      paste0("report_desglossament_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      exportar_llista_grafics(
+        llista_plots = llista_plots_desglossament(),
+        file_path = file,
+        n_cols = 2
+      )
+    }
+  )
    
   
  
@@ -738,6 +993,52 @@ server <- function(input, output, session) {
   #---
   
   ###################################### CONTRIBUCIO TOTAL #############################################
+
+  llista_plots_contrib_total <- reactive({
+    req(input$impactes_sel, resumA_animal(), resumB_animal())
+
+    lapply(input$impactes_sel, function(current_imp) {
+      unitat_actual <- UNITATS[current_imp]
+      if (is.na(unitat_actual)) unitat_actual <- ""
+
+      both <- bind_rows(
+        resumA_animal() %>% mutate(solucio = "Solució A"),
+        resumB_animal() %>% mutate(solucio = "Solució B")
+      ) %>%
+        filter(impacte == current_imp)
+
+      both$diet <- factor(both$diet, levels = c("ENTRADA", "CREIXEMENT", "ENGREIX", "ACABAT"))
+
+      totals <- both %>%
+        group_by(solucio) %>%
+        summarise(total_val = sum(valor, na.rm = TRUE), .groups = "drop")
+
+      ggplot(both, aes(x = solucio, y = valor)) +
+        geom_col(aes(fill = diet), width = 0.7, color = "white") +
+        geom_text(
+          data = totals,
+          aes(x = solucio, y = total_val, label = round(total_val, 2)),
+          hjust = -0.2,
+          fontface = "bold",
+          inherit.aes = FALSE
+        ) +
+        scale_fill_brewer(palette = "Set2") +
+        coord_flip() +
+        scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+        labs(
+          title = paste("Comparació d'Impacte:", toupper(gsub("_", " ", current_imp))),
+          y = paste("Valor Acumulat (", unitat_actual, ")"),
+          x = "",
+          fill = "Etapa Dieta"
+        ) +
+        theme_minimal() +
+        theme(
+          text = element_text(face = "bold"),
+          axis.text = element_text(face = "bold", size = 10),
+          plot.title = element_text(hjust = 0.5)
+        )
+    })
+  })
   
   output$plot_contribucio_total_AB <- renderUI({
     req(input$impactes_sel)
@@ -810,6 +1111,19 @@ server <- function(input, output, session) {
     
     do.call(tagList, plots)
   })
+
+  output$download_contrib_total <- downloadHandler(
+    filename = function() {
+      paste0("report_contribucio_total_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      exportar_llista_grafics(
+        llista_plots = llista_plots_contrib_total(),
+        file_path = file,
+        n_cols = 2
+      )
+    }
+  )
 
   
   #---
