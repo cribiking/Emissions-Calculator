@@ -193,52 +193,48 @@ server <- function(input, output, session) {
   
   ############################################# IMPACTE PER DIETA ############################################
   
-  # Plot impacte A vs B (resum format long)
-  output$plot_impacte_AB <- renderUI({
+  # Aquesta llista s'actualitza sola quan canvien els inputs o les dades
+  llista_plots_comparatius <- reactive({
+    req(input$impactes_sel, resumA_kg(), resumB_kg())
     
-    req(input$impactes_sel)
-    
-    impactes <- input$impactes_sel
-    
-    plots <- lapply(impactes, function(imp) {
-      
-      outputId <- paste0("plot_AB_", imp)
-      
+    lapply(input$impactes_sel, function(imp) {
       unitat_actual <- UNITATS[imp]
       if(is.na(unitat_actual)) unitat_actual <- ""
       
+      both <- bind_rows(
+        resumA_kg() %>% mutate(solucio = "A"),
+        resumB_kg() %>% mutate(solucio = "B")
+      ) %>% filter(impacte == imp)
+      
+      # Creem l'objecte ggplot pur
+      p <- ggplot(both, aes(x = diet, y = valor, fill = solucio)) +
+        geom_col(position = position_dodge(width = 0.9)) +
+        scale_fill_manual(values = c("A" = "#3498db", "B" = "#e67e22")) +
+        coord_flip() +
+        labs(
+          title = paste("Comparació A vs B –", toupper(gsub("_"," ",imp))),
+          y = paste("Valor (", unitat_actual, ")"),
+          x = "Dieta"
+        ) +
+        theme_minimal() +
+        theme(text = element_text(face = "bold"))
+      
+      return(p) # Guardem el ggplot a la llista
+    })
+  })
+  
+  output$plot_impacte_AB <- renderUI({
+    req(llista_plots_comparatius())
+    
+    plots_obj <- llista_plots_comparatius()
+    impactes <- input$impactes_sel
+    
+    plots_ui <- lapply(seq_along(plots_obj), function(i) {
+      outputId <- paste0("plot_AB_", impactes[i])
+      
+      # Renderitzem per a la web (Plotly)
       output[[outputId]] <- renderPlotly({
-     
-        A <- resumA_kg()
-        B <- resumB_kg()
-        
-        both <- bind_rows(
-          A %>% mutate(solucio = "A"),
-          B %>% mutate(solucio = "B")
-        ) %>% 
-          filter(impacte == imp)
-        
-        p <- ggplot(both, aes(x = diet, y = valor, fill = solucio)) +
-          geom_col(position = position_dodge(width = 0.9)) +
-          # AFEGIM COLORS ESTÀNDARD (Blau i Gris)
-          scale_fill_manual(values = c("A" = "#3498db", "B" = "#e67e22")) +
-          coord_flip() +
-          labs(
-            title = paste("Comparació A vs B –", imp),
-            y = paste("Valor (",unitat_actual,")"),
-            x = "Dieta"
-          ) +
-          theme_minimal()+
-          theme(
-            text = element_text(face = "bold"),
-            axis.text = element_text(face = "bold"),
-            axis.title = element_text(face = "bold"),
-            plot.title = element_text(face = "bold"),
-            legend.text = element_text(face = "bold"),
-            legend.title = element_text(face = "bold")
-          )
-        
-        ggplotly(p)
+        ggplotly(plots_obj[[i]])
       })
       
       tagList(
@@ -247,8 +243,24 @@ server <- function(input, output, session) {
       )
     })
     
-    do.call(tagList, plots)
+    do.call(tagList, plots_ui)
   })
+  
+
+  
+  output$download_plots_AB <- downloadHandler(
+    filename = function() { 
+      paste0("report_impacte_AB_", Sys.Date(), ".png") 
+    },
+    content = function(file) {
+      # Simplement cridem la funció genèrica!
+      exportar_llista_grafics(
+        llista_plots = llista_plots_comparatius(), # L'array dinàmic que ja tens
+        file_path = file,
+        n_cols = 3
+      )
+    }
+  )
   
   #---
   
@@ -282,7 +294,7 @@ server <- function(input, output, session) {
             scale_fill_manual(values = colors_paisos) +
             coord_flip() +
             labs(
-              title = paste("Solució A -", current_imp), 
+              title = paste("Solució A -", toupper(gsub("_"," ",current_imp))), 
               y = paste("Valor (", unitat_actual, ")"),
               x = "Etapa Dieta",
               fill = "Origen"
@@ -327,7 +339,7 @@ server <- function(input, output, session) {
             scale_fill_manual(values = colors_paisos) +
             coord_flip() +
             labs(
-              title = paste("Solució B -", current_imp), 
+              title = paste("Solució B -", toupper(gsub("_"," ",current_imp))), 
               y = paste("Valor (", unitat_actual, ")"), 
               x = "Etapa Dieta",
               fill = "Origen"
@@ -497,7 +509,7 @@ server <- function(input, output, session) {
           geom_jitter(width = 0.1, alpha = 0.3) + # Opcional: per veure els punts individuals
           scale_fill_manual(values = c("A" = "#f8766d", "B" = "#00bfc4")) +
           labs(
-            title = paste("Distribució:", imp),
+            title = paste("Distribució:", toupper(gsub("_"," ",imp))),
             y = paste("Valor (" ,unitat_actual, ")"), 
             x = "Solució") +
           theme_minimal() +
@@ -774,7 +786,7 @@ server <- function(input, output, session) {
             # Expandim l'eix Y (que és l'horitzontal per coord_flip) perquè el text no quedi tallat
             scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
             labs(
-              title = paste("Comparació d'Impacte:", current_imp),
+              title = paste("Comparació d'Impacte:", toupper(gsub("_"," ",current_imp))),
               y = paste("Valor Acumulat (", unitat_actual, ")"),
               x = "",
               fill = "Etapa Dieta"

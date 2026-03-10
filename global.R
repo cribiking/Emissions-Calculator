@@ -14,7 +14,8 @@ library(janitor)        # Per netejar noms de columnes (clean_names)
 library(countrycode)    # Per convertir ISO2 a ISO3
 library(highcharter)    # Per al mapa d'orígens (utilitza worldgeojson intern)
 
-
+# --- Paquets per captures ggarrenge ---
+library(ggpubr)
 
 
 ############ GLOBAL VARIABLES  #####################
@@ -723,7 +724,7 @@ plot_diferencies_AB <- function(A_data, B_data, imp) {
     geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
     coord_flip() +
     scale_fill_manual(values = c("A té més impacte (Pitjor)" = "#e74c3c", "B té més impacte (Pitjor)" = "#2ecc71")) +
-    labs(title = paste("Diferència:", imp), y = "Valor A - B", x = "Dieta", fill = "Resultat") +
+    labs(title = paste("Diferència:", toupper(gsub("_"," ",imp))), y = "Valor A - B", x = "Dieta", fill = "Resultat") +
     theme_minimal()
   
   ggplotly(p, tooltip = c("text", "y"))
@@ -787,6 +788,38 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
     theme(text = element_text(face = "bold"), legend.position = "bottom")
   
   ggplotly(p)
+}
+
+
+######################## GRAFICAR FUNCIONS ###################################
+
+# Funció per exportar llistes de gràfics de forma dinàmica
+exportar_llista_grafics <- function(llista_plots, file_path, n_cols = 3, base_height = 5, base_width = 15) {
+  req(length(llista_plots) > 0)
+  
+  # 1. Calculem el nombre de files necessàries
+  n_plots <- length(llista_plots)
+  n_rows <- ceiling(n_plots / n_cols)
+  
+  # 2. Creem el collage amb ggarrange
+  collage <- ggpubr::ggarrange(
+    plotlist = llista_plots,
+    ncol = n_cols,
+    nrow = n_rows,
+    common.legend = TRUE,
+    legend = "bottom"
+  )
+  
+  # 3. Guardem el fitxer
+  # L'alçada total dependrà de quantes files hi hagi realment
+  ggsave(
+    filename = file_path,
+    plot = collage,
+    width = base_width,
+    height = base_height * n_rows,
+    units = "in",
+    dpi = 300
+  )
 }
 
 #######

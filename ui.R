@@ -155,6 +155,10 @@ ui <- dashboardPage(
           # --- Pestanya Impactes per dieta ---
           tabPanel("Impactes per dieta",
                    br(),
+                   # Botó de descàrrega amb un estil cridaner
+                   downloadButton("download_plots_AB", "Descarregar Comparativa (PNG)", 
+                                  style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
+                   br(),
                    div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 5px solid #27ae60;",
                        h4("Perfil Ambiental Comparatiu", style = "font-weight: bold; margin-left: 10px;"),
                        p("Visualització agregada dels indicadors seleccionats.", style = "margin-left: 10px; color: #7f8c8d;")
