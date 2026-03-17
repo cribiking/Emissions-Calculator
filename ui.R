@@ -325,10 +325,89 @@ ui <- dashboardPage(
                   
           ),
           
-          tabPanel("Petjada Ambiental")
-          
-        
-      
+          tabPanel(
+            "Petjada Ambiental",
+            br(),
+            
+            # ===== SECCIÓ 0: COMPARATIVA A vs B (DESTACADA) =====
+            div(style = "background-color: #e8f5e9; padding: 15px; border-radius: 5px; border-left: 5px solid #4caf50; margin-bottom: 20px;",
+                h3(icon("balance-scale"), " Comparació Directa: Solució A vs Solució B", 
+                   style = "font-weight: bold; margin: 0;"),
+                p(style = "margin: 5px 0 0 0; color: #6c757d;",
+                  "Petjada ambiental total ponderada de les dues solucions seleccionades")
+            ),
+            
+            
+            # Info diferència
+            uiOutput("info_diferencia_AB"),
+            
+            br(),
+            
+            # Gràfic comparatiu A vs B
+            div(style = "background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);",
+                plotlyOutput("plot_comparativa_AB", height = "300px")
+            ),
+            
+            br(),
+            
+            # Taula comparativa ràpida
+            div(style = "background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);",
+                h5(icon("table"), " Desglossament per Fase", style = "margin-bottom: 15px;"),
+                DTOutput("tbl_comparativa_AB")
+            ),
+            
+            hr(style = "margin: 30px 0; border-top: 3px solid #eee;"),
+            
+            # ===== SECCIÓ 1: Visió general de TOTES =====
+            div(style = "background-color: #e8f5e9; padding: 15px; border-radius: 5px; border-left: 5px solid #4caf50; margin-bottom: 20px;",
+                h4(icon("globe"), " Petjada Ambiental - Totes les Dietes", style = "font-weight: bold; margin: 0;"),
+                p(style = "margin: 5px 0 0 0; color: #6c757d;", 
+                  "Càlcul complet per a tots els Steps i Fases de creixement")
+            ),
+            
+            uiOutput("info_totes_dietes"),
+            
+            br(),
+            
+            # ===== SECCIÓ 2: Gràfic comparatiu de TOTS =====
+            h4(icon("chart-bar"), " Comparativa de Tots els Steps"),
+            plotlyOutput("plot_comparativa_steps", height = "500px"),
+            
+            hr(),
+            
+            # ===== SECCIÓ 3: Taula resum per Step =====
+            h4(icon("table"), " Resum per Step (Total)"),
+            p("Suma de les 4 fases: ENTRADA + CREIXEMENT + ENGREIX + ACABAT"),
+            DTOutput("tbl_resum_steps"),
+            
+            hr(),
+            
+            # ===== SECCIÓ 4: Taula Step × Fase =====
+            h4(icon("th"), " Desglossament per Step i Fase"),
+            DTOutput("tbl_resum_dietes"),
+            
+            hr(),
+            
+            # ===== SECCIÓ 5: Detall per impacte (col·lapsable) =====
+            tags$details(
+              tags$summary(style = "cursor: pointer; font-weight: bold; color: #666; padding: 10px;",
+                           icon("list"), " Veure detall per categoria d'impacte"
+              ),
+              br(),
+              DTOutput("tbl_detall_impactes")
+            ),
+            
+            hr(),
+            
+            # ===== SECCIÓ 6: Verificació de dades =====
+            tags$details(
+              tags$summary(style = "cursor: pointer; font-weight: bold; color: #666; padding: 10px;",
+                           icon("clipboard-check"), " Verificació d'integritat de dades"
+              ),
+              br(),
+              uiOutput("verify_footprint_panel")
+            )
+          )
         ) # Tanca tabBox
     ) # Tanca div padding
   ) # Tanca body

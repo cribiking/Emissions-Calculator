@@ -13,7 +13,7 @@ library(janitor)        # Per netejar noms de columnes (clean_names)
 library(countrycode)    # Per convertir ISO2 a ISO3
 library(highcharter)    # Per al mapa d'orígens (utilitza worldgeojson intern)
 
-
+library(data.table) # Per a calcular taules grans més ràpidament
 
 
 ############ VARIABLE GLOBAL #####################
@@ -22,6 +22,10 @@ library(highcharter)    # Per al mapa d'orígens (utilitza worldgeojson intern)
 IMPACT_NAMES <- c("climate_change", "land_use", "water_use", 
                   "eutrophication_marine", "acidification", "particulate_matter")
 
+TOTAL_IMPACT_NAMES <- c(IMPACT_NAMES, "ecotoxicity_freshwater", "eutrophication_freshwater", 
+                        "eutrophication_terrestrial", "human_toxicity_cancer", 
+                        "human_toxicity_non_cancer", "ionising_radiation", "ozone_depletion", 
+                        "photochemical_ozone_formation", "resource_depletion_fossils", "resource_depletion_minerals_and_metals")
 
 # Defineix-lo així per poder fer cerques per clau
 UNITATS <- c(
@@ -77,6 +81,57 @@ carrega_transport <- function(path) {
   return(df)
 }
 
+carrega_dades_ambientals_totals <- function(path) {
+  df <- read_excel(path, sheet = 1) %>% clean_names()
+
+  if(!"ingredient" %in% names(df)) {
+    stop("Falta la columna obligatòria 'ingredient'")
+  }
+  
+  impact_cols <- intersect(TOTAL_IMPACT_NAMES, names(df))
+  missing_impacts <- setdiff(TOTAL_IMPACT_NAMES, names(df))
+
+  if(length(missing_impacts) > 0) {
+    message(paste("Falten columnes d'impacte:", paste(missing_impacts, collapse = ", ")))
+  }
+  
+  df %>% select(all_of(c("ingredient", impact_cols)))
+}
+
+carrega_emissions <- function(path) {
+  df <- read_excel(path, sheet=2) %>% clean_names()
+  
+  expect_cols <- c("impact_category", "normalisation_factor_per_person", "final_weight_factor")
+  missing_cols <- setdiff(expect_cols, names(df))
+  
+  if(length(missing_cols) > 0){
+    stop("Falten columnes obligatòries a la fulla 2 (emissions): ", paste(missing_cols, collapse = ", "))
+  }
+  
+  parse_decimal_comma <- function(x) {
+    if(is.numeric(x)) return(x)
+    
+    x_char <- as.character(x)
+    
+    x_char <- gsub(",", ".", x_char)
+    
+    x_char <- trimws(x_char)
+    
+    x_char[x_char == ""] <- NA
+    x_char[x_char == "-"] <- NA
+    x_char[x_char == "N/A"] <- NA
+    
+    as.numeric(x_char)
+  }
+  
+  df <- df %>%
+    mutate(
+      normalisation_factor_per_person = parse_decimal_comma(normalisation_factor_per_person),
+      final_weight_factor = parse_decimal_comma(final_weight_factor)
+    )
+  
+  return(df)
+}
 
 # ---------------------------
 # Funcions utilitàries per selecció d'origen d'un ingredient
@@ -749,6 +804,153 @@ plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, imp
     theme(text = element_text(face = "bold"), legend.position = "bottom")
   
   ggplotly(p)
+}
+
+### ENVIRONMENTAL FOOTPRINT ###
+
+fn_verify_impacts <- function(df_env_totals, df_emissions) {
+  
+  cols_sheet1 <- setdiff(names(df_env_totals), "ingredient")
+  cols_sheet1_clean <- janitor::make_clean_names(cols_sheet1)
+  
+  cats_sheet2 <- df_emissions$impact_category
+  cats_sheet2_clean <- janitor::make_clean_names(cats_sheet2)
+  
+  coincidents <- intersect(cols_sheet1_clean, cats_sheet2_clean)
+  only_sheet1 <- setdiff(cols_sheet1_clean, cats_sheet2_clean)
+  only_sheet2 <- setdiff(cats_sheet2_clean, cols_sheet1_clean)
+  
+  list(
+    coincidents = coincidents,
+    only_sheet1 = only_sheet1,
+    only_sheet2 = only_sheet2,
+    total_sheet1 = length(cols_sheet1_clean),
+    total_sheet2 = length(cats_sheet2_clean)
+  )
+}
+
+fn_verify_ingredients <- function(df_dietes, df_env_totals) {
+  
+  ing_dietes <- df_dietes$ingredient %>%
+    trimws() %>%
+    tolower() %>%
+    unique() %>%
+    na.omit() %>%
+    as.character()
+  
+  ing_env <- df_env_totals$ingredient %>%
+    trimws() %>%
+    tolower() %>%
+    unique() %>%
+    na.omit() %>%
+    as.character()
+  
+  ing_dietes <- ing_dietes[ing_dietes != ""]
+  ing_env <- ing_env[ing_env != ""]
+  
+  coincidents <- intersect(ing_dietes, ing_env)
+  only_dietes <- setdiff(ing_dietes, ing_env)
+  only_env <- setdiff(ing_env, ing_dietes)
+  
+  list(
+    coincidents = coincidents,
+    falten_a_ambientals = only_dietes,
+    sobren_a_ambientals = only_env,
+    total_dietes = length(ing_dietes),
+    total_env = length(ing_env)
+  )
+}
+
+#### CALCUL CONTRIBUCIO DIETES ####
+
+fn_calcul_contribucio_totes_dietes <- function(df_dietes, df_env_totals, df_emissions) {
+  
+  dt_dietes <- as.data.table(df_dietes)
+  dt_env <- as.data.table(df_env_totals)
+  
+  # Columnes d'impacte disponibles
+  impact_cols <- intersect(TOTAL_IMPACT_NAMES, names(dt_env))
+  
+  if(length(impact_cols) == 0) {
+    return(list(
+      error = TRUE,
+      missatge = "No s'han trobat columnes d'impacte"
+    ))
+  }
+  
+  # 1. PREPARAR FACTORS DE NORMALITZACIÓ (una sola vegada)
+  factors_norm <- df_emissions %>%
+    select(impact_category, normalisation_factor_per_person, final_weight_factor) %>%
+    mutate(
+      impacte = janitor::make_clean_names(impact_category),
+      normalisation_factor_per_person = as.numeric(gsub(",", ".", normalisation_factor_per_person)),
+      final_weight_factor = as.numeric(gsub(",", ".", final_weight_factor))
+    ) %>%
+    select(impacte, normalisation_factor_per_person, final_weight_factor)
+  
+  # 2. PREPARAR DADES AMBIENTALS EN FORMAT LLARG (una sola vegada)
+  env_long <- dt_env %>%
+    mutate(ingredient_clean = trimws(tolower(ingredient))) %>%
+    select(ingredient_clean, all_of(impact_cols)) %>%
+    pivot_longer(
+      cols = all_of(impact_cols),
+      names_to = "impacte",
+      values_to = "valor_base"
+    ) %>%
+    mutate(valor_base = replace_na(valor_base, 0))
+  
+  # 3. PREPARAR DIETES AMB INGREDIENT NETEJAT
+  dietes_clean <- dt_dietes %>%
+    mutate(ingredient_clean = trimws(tolower(ingredient))) %>%
+    select(step, diet, ingredient, ingredient_clean, prop)
+  
+  # 4. JOIN MASSIU
+  resultats_tots <- dietes_clean %>%
+    # Unir amb dades ambientals
+    left_join(env_long, by = "ingredient_clean", relationship = "many-to-many") %>%
+    # Unir amb factors de normalització
+    left_join(factors_norm, by = "impacte") %>%
+    # Calcular contribucions
+    mutate(
+      valor_base = replace_na(valor_base, 0),
+      normalisation_factor = if_else(is.na(normalisation_factor_per_person), 1, normalisation_factor_per_person),
+      final_weight = if_else(is.na(final_weight_factor), 1, final_weight_factor),
+      contribucio_bruta = valor_base * prop,
+      contribucio_normalitzada = contribucio_bruta / normalisation_factor,
+      contribucio_ponderada = contribucio_normalitzada * final_weight
+    ) %>%
+    select(step, diet, ingredient, impacte, prop, valor_base, contribucio_ponderada)
+  
+  # 5. AGREGACIONS
+  
+  # Per step × diet × impacte
+  resum_per_dieta_impacte <- resultats_tots %>%
+    group_by(step, diet, impacte) %>%
+    summarise(total_ponderada = sum(contribucio_ponderada, na.rm = TRUE), .groups = "drop")
+  
+  # Per step × diet
+  resum_per_dieta <- resum_per_dieta_impacte %>%
+    group_by(step, diet) %>%
+    summarise(petjada_total = sum(total_ponderada, na.rm = TRUE), .groups = "drop")
+  
+  # Per step
+  resum_per_step <- resum_per_dieta %>%
+    group_by(step) %>%
+    summarise(petjada_total_step = sum(petjada_total, na.rm = TRUE), .groups = "drop")
+  
+  # Comptar combinacions
+  combinacions <- dt_dietes %>% distinct(step, diet)
+  
+  list(
+    error = FALSE,
+    n_steps = length(unique(dt_dietes$step)),
+    n_dietes = length(unique(dt_dietes$diet)),
+    n_combinacions = nrow(combinacions),
+    detall_complet = resultats_tots,
+    resum_per_dieta_impacte = resum_per_dieta_impacte,
+    resum_per_dieta = resum_per_dieta,
+    resum_per_step = resum_per_step
+  )
 }
 
 #######

@@ -73,6 +73,53 @@ server <- function(input, output, session) {
     })
   })
   
+  dades_env_totals <- reactive({
+    req(input$file_env)
+    
+    ruta_archivo <- input$file_env$datapath
+    
+    tryCatch({
+      hojas <- readxl::excel_sheets(ruta_archivo)
+      
+      if(length(hojas) > 1) {
+        showNotification(
+          paste("Avis: L'arxiu conté", length(hojas), "fulls. només es processarà la primera:", hojas[1]),
+          type = "warning", 
+          duration = 10
+        )
+      }
+      
+      carrega_dades_ambientals_totals(ruta_archivo)
+      
+    }, error = function(e) {
+      showNotification(paste("Error fitxer ambientals:", e$message), type = "error")
+      NULL
+    })
+  })
+  
+  environmental_df <- reactive({
+    req(input$file_env)
+    
+    tryCatch({
+      df <- carrega_emissions(input$file_env$datapath)
+      
+      missing_in_sheet2 <- setdiff(TOTAL_IMPACT_NAMES, df$impact_category)
+      
+      if(length(missing_in_sheet2) > 0) {
+        showNotification(
+          paste("Fulla 2: Falten factors per a:", paste(missing_in_sheet2, collapse = ", ")),
+          type = "warning",
+          duration = 15
+        )
+      }
+      
+      df
+    }, error = function(e) {
+      showNotification(paste("Error fitxer ambientals (Fulla 2):", e$message), type = "error")
+      NULL
+    })
+  })
+  
   #---
   
   ################## SELECCIO D'STEPS I FILTRES #################################
@@ -871,6 +918,474 @@ server <- function(input, output, session) {
     } else {
       plot_impacte_A_vs_B_generic(resumA_kg(), resumB_kg(), impactes_sel = input$impactes_sel, per_animal = FALSE)
     }
+  })
+  
+  ### ENVIRONMENTAL FOOTPRINT ###
+  
+  rv_verify_impacts <- reactive({
+    req(dades_env_totals(), environmental_df())
+    fn_verify_impacts(dades_env_totals(), environmental_df())
+  })
+  
+  rv_verify_ingredients <- reactive({
+    req(dades_dietes(), dades_env_totals())
+    fn_verify_ingredients(dades_dietes(), dades_env_totals())
+  })
+  
+  output$verify_footprint_panel <- renderUI({
+    
+    req(rv_verify_impacts(), rv_verify_ingredients())
+    
+    v_imp <- rv_verify_impacts()
+    v_ing <- rv_verify_ingredients()
+    
+    tagList(
+      h3(icon("leaf"), " Verificació de Categories d'Impacte"),
+      p("Comparació entre les columnes de la Fulla 1 i les categories de la Fulla 2"),
+      
+      fluidRow(
+        column(4,
+               div(style = "background: #d4edda; padding: 15px; border-radius: 8px; text-align: center;",
+                   h4(style = "color: #155724; margin: 0;", length(v_imp$coincidents)),
+                   p(style = "color: #155724; margin: 5px 0 0 0;", "Coincidents")
+               )
+        ),
+        column(4,
+               div(style = "background: #fff3cd; padding: 15px; border-radius: 8px; text-align: center;",
+                   h4(style = "color: #856404; margin: 0;", length(v_imp$only_sheet1)),
+                   p(style = "color: #856404; margin: 5px 0 0 0;", "Només a Fulla 1")
+               )
+        ),
+        column(4,
+               div(style = "background: #cce5ff; padding: 15px; border-radius: 8px; text-align: center;",
+                   h4(style = "color: #004085; margin: 0;", length(v_imp$only_sheet2)),
+                   p(style = "color: #004085; margin: 5px 0 0 0;", "Només a Fulla 2")
+               )
+        )
+      ),
+      
+      br(),
+      
+      if(length(v_imp$only_sheet1) > 0 || length(v_imp$only_sheet2) > 0) {
+        wellPanel(
+          style = "background: #f8f9fa;",
+          if(length(v_imp$only_sheet1) > 0) {
+            tagList(
+              strong("⚠️ Columnes a Fulla 1 sense factor a Fulla 2:"),
+              br(),
+              tags$code(paste(v_imp$only_sheet1, collapse = ", ")),
+              br(), br()
+            )
+          },
+          if(length(v_imp$only_sheet2) > 0) {
+            tagList(
+              strong("ℹ️ Categories a Fulla 2 sense columna a Fulla 1:"),
+              br(),
+              tags$code(paste(v_imp$only_sheet2, collapse = ", "))
+            )
+          }
+        )
+      },
+      
+      hr(),
+      
+      h3(icon("carrot"), " Verificació d'Ingredients"),
+      p("Comparació entre els ingredients del fitxer de dietes i la Fulla 1 d'ambientals"),
+      
+      fluidRow(
+        column(4,
+               div(style = "background: #d4edda; padding: 15px; border-radius: 8px; text-align: center;",
+                   h4(style = "color: #155724; margin: 0;", length(v_ing$coincidents)),
+                   p(style = "color: #155724; margin: 5px 0 0 0;", "Coincidents")
+               )
+        ),
+        column(4,
+               div(style = paste0("background: ", 
+                                  ifelse(length(v_ing$falten_a_ambientals) > 0, "#f8d7da", "#d4edda"), 
+                                  "; padding: 15px; border-radius: 8px; text-align: center;"),
+                   h4(style = paste0("color: ", 
+                                     ifelse(length(v_ing$falten_a_ambientals) > 0, "#721c24", "#155724"), 
+                                     "; margin: 0;"), 
+                      length(v_ing$falten_a_ambientals)),
+                   p(style = paste0("color: ", 
+                                    ifelse(length(v_ing$falten_a_ambientals) > 0, "#721c24", "#155724"), 
+                                    "; margin: 5px 0 0 0;"), 
+                     "Falten a Ambientals")
+               )
+        ),
+        column(4,
+               div(style = "background: #e2e3e5; padding: 15px; border-radius: 8px; text-align: center;",
+                   h4(style = "color: #383d41; margin: 0;", length(v_ing$sobren_a_ambientals)),
+                   p(style = "color: #383d41; margin: 5px 0 0 0;", "No utilitzats")
+               )
+        )
+      ),
+      
+      br(),
+      
+      if(length(v_ing$falten_a_ambientals) > 0) {
+        div(style = "background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 8px; margin-top: 10px;",
+            h4(style = "color: #721c24; margin-top: 0;", 
+               icon("exclamation-triangle"), " ATENCIÓ: Ingredients sense dades ambientals"),
+            p(style = "color: #721c24;", 
+              "Els següents ingredients apareixen a les dietes però NO tenen valors d'impacte:"),
+            tags$ul(
+              lapply(v_ing$falten_a_ambientals, function(x) tags$li(tags$code(x)))
+            )
+        )
+      } else {
+        div(style = "background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 8px; margin-top: 10px;",
+            icon("check-circle"), 
+            strong(" Tots els ingredients de les dietes tenen dades ambientals assignades.")
+        )
+      },
+      
+      if(length(v_ing$sobren_a_ambientals) > 0) {
+        div(style = "background: #e2e3e5; border: 1px solid #d6d8db; padding: 15px; border-radius: 8px; margin-top: 10px;",
+            tags$details(
+              tags$summary(style = "cursor: pointer; color: #383d41;", 
+                           icon("info-circle"), 
+                           paste(" ", length(v_ing$sobren_a_ambientals), "ingredients a ambientals no utilitzats (clic per veure)")
+              ),
+              br(),
+              tags$code(style = "font-size: 11px;", paste(v_ing$sobren_a_ambientals, collapse = ", "))
+            )
+        )
+      }
+    )
+  })
+  
+  #### CALCUL CONTRIBUCIO DIETES A I B ####
+  
+  # Gràfic comparatiu de les DUES dietes seleccionades (Step A vs Step B)
+  output$plot_comparativa_AB <- renderPlotly({
+    
+    res <- rv_contribucio_totes()
+    req(input$stepA, input$stepB)
+    
+    if(res$error) return(NULL)
+    
+    # Filtrem només els steps seleccionats
+    df_plot <- res$resum_per_dieta %>%
+      filter(step %in% c(input$stepA, input$stepB)) %>%
+      mutate(
+        step_label = case_when(
+          step == input$stepA ~ paste("A (Step", input$stepA, ")"),
+          step == input$stepB ~ paste("B (Step", input$stepB, ")"),
+          TRUE ~ as.character(step)
+        ),
+        step_label = factor(step_label, levels = c(
+          paste("A (Step", input$stepA, ")"),
+          paste("B (Step", input$stepB, ")")
+        )),
+        diet = factor(diet, levels = c("ACABAT", "ENGREIX", "CREIXEMENT", "ENTRADA"))
+      )
+    
+    # Colors per fase
+    colors_fases <- c(
+      "ENTRADA" = "#66c2a5",
+      "CREIXEMENT" = "#fc8d62", 
+      "ENGREIX" = "#8da0cb",
+      "ACABAT" = "#e78ac3"
+    )
+    
+    # Creem el gràfic directament amb plotly
+    plot_ly(
+      df_plot,
+      x = ~petjada_total,
+      y = ~step_label,
+      color = ~diet,
+      colors = colors_fases,
+      type = "bar",
+      orientation = "h",
+      hovertemplate = paste(
+        "<b>%{y}</b><br>",
+        "Fase: %{data.name}<br>",
+        "Valor: %{x:.6f}<extra></extra>"
+      )
+    ) %>%
+      layout(
+        barmode = "stack",
+        title = list(
+          text = "<b>Comparació Petjada Ambiental: Solució A vs Solució B</b>",
+          font = list(size = 16),
+          y = 0.95
+        ),
+        xaxis = list(
+          title = ""
+        ),
+        yaxis = list(
+          title = "",
+          categoryorder = "array",
+          categoryarray = c(
+            paste("B (Step", input$stepB, ")"),
+            paste("A (Step", input$stepA, ")")
+          )
+        ),
+        legend = list(
+          orientation = "h",
+          x = 0.5,
+          xanchor = "center",
+          y = -0.35,
+          traceorder = "reversed"
+        ),
+        margin = list(l = 120, r = 50, t = 80, b = 120)
+      )
+  })
+  
+  output$tbl_comparativa_AB <- renderDT({
+    
+    res <- rv_contribucio_totes()
+    req(input$stepA, input$stepB)
+    
+    if(res$error) return(NULL)
+    
+    taula <- res$resum_per_dieta %>%
+      filter(step %in% c(input$stepA, input$stepB)) %>%
+      mutate(
+        solucio = case_when(
+          step == input$stepA ~ "Solució A",
+          step == input$stepB ~ "Solució B"
+        )
+      ) %>%
+      select(solucio, diet, petjada_total) %>%
+      pivot_wider(
+        names_from = diet,
+        values_from = petjada_total,
+        values_fill = 0
+      ) %>%
+      rowwise() %>%
+      mutate(TOTAL = sum(c_across(where(is.numeric)), na.rm = TRUE)) %>%
+      ungroup()
+    
+    datatable(
+      taula %>%
+        mutate(across(where(is.numeric), ~ formatC(.x, format = "f", digits = 6))),
+      extensions = 'Buttons',
+      options = list(
+        dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel'),
+        ordering = FALSE
+      ),
+      rownames = FALSE,
+      caption = paste("Comparativa Step", input$stepA, "vs Step", input$stepB)
+    ) %>%
+      formatStyle('TOTAL', backgroundColor = '#c8e6c9', fontWeight = 'bold') %>%
+      formatStyle('solucio', fontWeight = 'bold')
+  })
+  
+  output$info_diferencia_AB <- renderUI({
+    
+    res <- rv_contribucio_totes()
+    req(input$stepA, input$stepB)
+    
+    if(res$error) return(NULL)
+    
+    total_A <- res$resum_per_step %>%
+      filter(step == input$stepA) %>%
+      pull(petjada_total_step)
+    
+    total_B <- res$resum_per_step %>%
+      filter(step == input$stepB) %>%
+      pull(petjada_total_step)
+    
+    if(length(total_A) == 0) total_A <- 0
+    if(length(total_B) == 0) total_B <- 0
+    
+    diferencia <- total_A - total_B
+    percentatge <- if(total_B != 0) ((diferencia / total_B) * 100) else 0
+    
+    millor <- if(diferencia < 0) "A" else if(diferencia > 0) "B" else "Iguals"
+    color_millor <- if(diferencia < 0) "#4caf50" else if(diferencia > 0) "#f44336" else "#9e9e9e"
+    
+    tagList(
+      fluidRow(
+        column(4,
+               div(style = "background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center;",
+                   h5(style = "margin: 0; color: #1565c0;", paste("Solució A (Step", input$stepA, ")")),
+                   h3(style = "margin: 10px 0; color: #0d47a1;", formatC(total_A, format = "f", digits = 6))
+               )
+        ),
+        column(4,
+               div(style = "background: #fff3e0; padding: 15px; border-radius: 8px; text-align: center;",
+                   h5(style = "margin: 0; color: #e65100;", paste("Solució B (Step", input$stepB, ")")),
+                   h3(style = "margin: 10px 0; color: #bf360c;", formatC(total_B, format = "f", digits = 6))
+               )
+        ),
+        column(4,
+               div(style = paste0("background: ", color_millor, "22; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid ", color_millor, ";"),
+                   h5(style = paste0("margin: 0; color: ", color_millor, ";"), "Millor opció"),
+                   h3(style = paste0("margin: 10px 0; color: ", color_millor, ";"), 
+                      if(millor == "Iguals") "=" else paste("Solució", millor)),
+                   p(style = "font-size: 12px; margin: 0;", 
+                     if(millor != "Iguals") paste0(abs(round(percentatge, 1)), "% menys impacte") else "")
+               )
+        )
+      )
+    )
+  })
+  
+  #### CALCUL CONTRIBUCIO DIETES ####
+  
+  rv_contribucio_totes <- reactive({
+    req(dades_dietes(), dades_env_totals(), environmental_df())
+    
+    fn_calcul_contribucio_totes_dietes(
+      df_dietes = dades_dietes(),
+      df_env_totals = dades_env_totals(),
+      df_emissions = environmental_df()
+    )
+  })
+  
+  output$tbl_resum_steps <- renderDT({
+    
+    res <- rv_contribucio_totes()
+    
+    if(res$error) {
+      return(datatable(data.frame(Error = res$missatge), options = list(dom = 't')))
+    }
+    
+    datatable(
+      res$resum_per_step %>%
+        mutate(
+          step = as.integer(step),
+          petjada_total_step = formatC(petjada_total_step, format = "f", digits = 6)
+        ) %>%
+        arrange(step),
+      colnames = c("Step", "Petjada Total"),
+      extensions = 'Buttons',
+      rownames = FALSE,
+      options = list(
+        pageLength = 15,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'excel')
+      ),
+      caption = "Petjada ambiental total per cada Step"
+    ) %>%
+      formatStyle('petjada_total_step', backgroundColor = '#c8e6c9', fontWeight = 'bold')
+  })
+  
+  output$tbl_resum_dietes <- renderDT({
+    
+    res <- rv_contribucio_totes()
+    
+    if(res$error) {
+      return(datatable(data.frame(Error = res$missatge), options = list(dom = 't')))
+    }
+    
+    taula_pivot <- res$resum_per_dieta %>%
+      pivot_wider(
+        names_from = diet,
+        values_from = petjada_total,
+        values_fill = 0
+      ) %>%
+      arrange(step) %>%
+      mutate(
+        step = as.integer(step),
+        across(-step, ~ formatC(.x, format = "f", digits = 6))
+      )
+    
+    datatable(
+      taula_pivot,
+      extensions = 'Buttons',
+      rownames = FALSE,
+      options = list(
+        pageLength = 15,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'excel'),
+        scrollX = TRUE
+      ),
+      caption = "Petjada ambiental per Step i Fase de creixement"
+    )
+  })
+  
+  output$tbl_detall_impactes <- renderDT({
+    
+    res <- rv_contribucio_totes()
+    
+    if(res$error) {
+      return(datatable(data.frame(Error = res$missatge), options = list(dom = 't')))
+    }
+    
+    datatable(
+      res$resum_per_dieta_impacte %>%
+        mutate(
+          step = as.integer(step),
+          total_ponderada = formatC(total_ponderada, format = "f", digits = 6)
+        ) %>%
+        arrange(step, diet, impacte),
+      colnames = c("Step", "Fase", "Impacte", "Total Ponderat"),
+      extensions = 'Buttons',
+      rownames = FALSE,
+      options = list(
+        pageLength = 20,
+        dom = 'Bfrtip',
+        buttons = c('copy', 'excel'),
+        scrollX = TRUE
+      ),
+      filter = "top"
+    )
+  })
+  
+  output$plot_comparativa_steps <- renderPlotly({
+    
+    res <- rv_contribucio_totes()
+    
+    if(res$error) return(NULL)
+    
+    df_plot <- res$resum_per_dieta %>%
+      mutate(
+        step = factor(step),
+        diet = factor(diet, levels = c("ENTRADA", "CREIXEMENT", "ENGREIX", "ACABAT"))
+      )
+    
+    p <- ggplot(df_plot, aes(x = step, y = petjada_total, fill = diet)) +
+      geom_col(position = "stack", color = "white", linewidth = 0.2) +
+      scale_fill_brewer(palette = "Set2") +
+      coord_flip() +
+      labs(
+        title = "Petjada Ambiental per Step",
+        subtitle = "Desglossament per fase de creixement",
+        x = "Step",
+        y = "Petjada Total Ponderada",
+        fill = "Fase"
+      ) +
+      theme_minimal() +
+      theme(
+        text = element_text(face = "bold"),
+        legend.position = "bottom"
+      )
+    
+    ggplotly(p) %>%
+      layout(legend = list(orientation = "h", x = 0, y = -0.15))
+  })
+  
+  output$info_totes_dietes <- renderUI({
+    
+    res <- rv_contribucio_totes()
+    
+    if(res$error) {
+      return(div(style = "color: red;", icon("exclamation-triangle"), res$missatge))
+    }
+    
+    tagList(
+      div(style = "background: #e3f2fd; padding: 20px; border-radius: 10px; margin-bottom: 20px;",
+          fluidRow(
+            column(4,
+                   h5("Steps (Solucions)", style = "margin: 0; color: #1565c0;"),
+                   h3(res$n_steps, style = "margin: 5px 0;")
+            ),
+            column(4,
+                   h5("Fases de Creixement", style = "margin: 0; color: #1565c0;"),
+                   h3(res$n_dietes, style = "margin: 5px 0;")
+            ),
+            column(4,
+                   h5("Total Combinacions", style = "margin: 0; color: #1565c0;"),
+                   h3(res$n_combinacions, style = "margin: 5px 0;")
+            )
+          )
+      )
+    )
   })
   
 }
