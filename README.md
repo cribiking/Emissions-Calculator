@@ -242,13 +242,19 @@ Per a que serveix:
 
 ### Petjada Ambiental
 
-Estat actual:
+Que mostra:
 
-1. Pestanya creada a UI, sense visualitzacions implementades a `server.R`.
+1. Comparació directa entre les solucions A i B escollides, acompanyat d'el seu `gràfic de barres`, la seva `taula de dades` amb les 4 fases de la dieta (poguent ser les dades exportables o copiades) i el `resultat en tant per cent` de millora de la menys contaminant respecte la més emisora de carboni.
+2. Comparació total entre les dietes afegides al fitxer d'entrada on les dades es mostren en un `gràfic de barres plotly`, una `taula de dades totals` exportables o copiables i una `taula de dades segmentada` per fases de creixement de totes les dietes.
+3. Una `taula comparativa` de les dades totals per impacte, per tal d'analitzar `fase per fase`, quins son els impactes que més influeixen en els resultats.
+4. Apartat de verificació de les dades on s'evalua si son coincidents els noms d'impactes entre la taula d'impactes i la de pessos finals i els noms d'ingredients entre les taules de dietes i d'impactes. A més de mostrar quins ingredients mai s'arriben a fer servir.
 
-Per a que serveix (previst):
+Per a que serveix:
 
-1. Espai reservat per a un resum addicional de petjada ambiental.
+1. Visualitzar entre dues dietes seleccionades la menys contaminant.
+2. Investigar quina dieta és la menys o més emissora de carboni de entre totes, i ser capaç de distingir quines fases contaminen més en les dietes.
+3. Analitzar els impactes fase per fase per poguer distingir el seu perjudici al medi ambient.
+4. Comprobar que les dades han pogut relacionar-se entre taules sense problemes, i en cas d'haber-hi, poguer detectar el problema ràpidament.
 
 ## Flux recomanat d'us
 
