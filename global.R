@@ -1151,3 +1151,34 @@ box_config <- list(
   list(id = "box_diets",       title = "Total Diets",        color = "purple", var = "diet",       source = "diets"),
   list(id = "box_steps",       title = "Steps",              color = "orange", var = "step",       source = "diets")
 )
+
+
+############################################################
+# MAPA UI -> FUNCIONS (REFERENCIA RAPIDA)
+############################################################
+# Bloc UI / Pestanya                  | Funcions de global.R relacionades
+# ----------------------------------- | ------------------------------------------------------------
+# Controls superiors (fitxers)        | carrega_dades_ambientals, carrega_dades_dietes,
+#                                     | carrega_transport, carrega_dades_ambientals_totals,
+#                                     | carrega_emissions
+# Controls superiors (overrides)      | origens_per_ingredient, apply_overrides_to_env,
+#                                     | get_default_row_for_ingredient
+# Motor base A/B                      | calcula_solucio_amb_transport
+# Visio general                       | box_config
+# Composicio per dieta                | plot_composicio_gg, plot_composicio
+# Impactes per dieta                  | resum_per_dieta_from_joined
+# Contribucio per origen              | contribucio_per_origen_from_joined,
+#                                     | plot_origen_per_dieta_from_joined
+# Top ingredients                     | plot_topN_ingredients_per_dieta_gg,
+#                                     | plot_topN_ingredients_per_dieta
+# Mapa d'origens                      | preparar_dades_mapa_full, plot_map_final,
+#                                     | plot_map_static_gg
+# Distribucio                         | resum_per_dieta_from_joined
+# Diferencia A-B                      | plot_diferencies_AB_gg, plot_diferencies_AB
+# Desglossament impacte               | plot_descomposicio_transport_ingredient_gg,
+#                                     | plot_descomposicio_transport_ingredient
+# Contribucio total (per animal)      | calcul_contribucio_total_per_animal
+# Exportacions PNG                    | exportar_llista_grafics
+# Verificacio ingredients             | comprovar_ingredients_faltants
+# Environmental Footprint             | fn_verify_impacts, fn_verify_ingredients,
+#                                     | fn_calcul_contribucio_totes_dietes
