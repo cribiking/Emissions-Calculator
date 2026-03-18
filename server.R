@@ -1624,11 +1624,21 @@ server <- function(input, output, session) {
     if(length(total_A) == 0) total_A <- 0
     if(length(total_B) == 0) total_B <- 0
     
-    diferencia <- total_A - total_B
-    percentatge <- if(total_B != 0) ((diferencia / total_B) * 100) else 0
-    
-    millor <- if(diferencia < 0) "A" else if(diferencia > 0) "B" else "Iguals"
-    color_millor <- if(diferencia < 0) "#4caf50" else if(diferencia > 0) "#f44336" else "#9e9e9e"
+    if(total_A < total_B) {
+      millor <- "A"
+      color_millor <- "#4caf50"
+      # Quant menys té A respecte a B
+      percentatge <- ((total_B - total_A) / total_B) * 100
+    } else if(total_B < total_A) {
+      millor <- "B"
+      color_millor <- "#4caf50"
+      # Quant menys té B respecte a A
+      percentatge <- ((total_A - total_B) / total_A) * 100
+    } else {
+      millor <- "Iguals"
+      color_millor <- "#9e9e9e"
+      percentatge <- 0
+    }
     
     tagList(
       fluidRow(
