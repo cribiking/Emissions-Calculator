@@ -14,11 +14,31 @@ library(janitor)        # Per netejar noms de columnes (clean_names)
 library(countrycode)    # Per convertir ISO2 a ISO3
 library(highcharter)    # Per al mapa d'orígens (utilitza worldgeojson intern)
 
-library(data.table) # Per a calcular taules grans més ràpidament# --- Paquets per captures ggarrenge ---
+library(data.table)      # Per a calcular taules grans més ràpidament
 library(ggpubr)
 
 
-############ GLOBAL VARIABLES  #####################
+# ============================================================
+# ÍNDEX FUNCIONAL (global.R)
+# ============================================================
+# 00. Constants, paletes i estat global reactiu
+# 01. Càrrega i validació de fitxers d'entrada
+# 02. Helpers d'origen i aplicació d'overrides
+# 03. Motor de càlcul principal (solució amb transport)
+# 04. Resums i taules derivades (per kg / per animal)
+# 05. Suport UI: composició, origen i top ingredients
+# 06. Suport UI: mapa d'orígens (dinàmic i estàtic)
+# 07. Suport UI: diferència A-B
+# 08. Suport UI: desglossament d'impacte (ingredient vs transport)
+# 09. Utilitats d'exportació de gràfics
+# 10. Verificacions de qualitat de dades
+# 11. Càlcul global de petjada per tots els steps
+# 12. Configuració compartida de components UI (value boxes)
+
+
+############################################################
+# 00. CONSTANTS, UNITATS, COLORS I ESTAT GLOBAL REACTIU
+############################################################
 
 
 IMPACT_NAMES <- c("climate_change", "land_use", "water_use", 
@@ -43,7 +63,7 @@ OVERRIDES <- reactiveVal(tibble(ingredient = character(0), origen_selected = cha
 
 
 
-# Al teu fitxer Global.R o a l'inici de l'app
+# Paleta per països/orígens als gràfics de contribució
 colors_paisos <- c(
   "ES"  = "#2c3e50", # Blau fosc (Espanya / RER)
   "FR"  = "#3498db", # Blau clar
@@ -58,12 +78,12 @@ colors_paisos <- c(
 
 
 
-# ---------------------------
-# Càrregar Fitxers
-# ---------------------------
+############################################################
+# 01. CÀRREGA I VALIDACIÓ DE FITXERS
+############################################################
 
 
-#Carregar dades medioambientals
+# [01.1] Carregar dades mediambientals base (sheet 1)
 carrega_dades_ambientals <- function(path) {
   
   df <- read_excel(path) %>% clean_names()
@@ -79,7 +99,7 @@ carrega_dades_ambientals <- function(path) {
   df %>% select(all_of(c(expect_cols, impact_cols)))
 }
 
-#Carregar dades de ingredients used
+# [01.2] Carregar dades de dietes (ingredients utilitzats)
 carrega_dades_dietes <- function(path) {
   df <- read_excel(path) %>% clean_names() %>%
     mutate(prop = as.numeric(prop))
@@ -91,7 +111,7 @@ carrega_dades_dietes <- function(path) {
   df
 }
 
-#Carregar dades de emissions de transport
+# [01.3] Carregar dades d'emissions de transport
 carrega_transport <- function(path) {
   df <- read_excel(path, sheet=1) %>% clean_names()
   # s'espera col 'origen' i idealment les mateixes categories d'impacte + lat/lon opcional
@@ -102,6 +122,7 @@ carrega_transport <- function(path) {
   return(df)
 }
 
+# [01.4] Carregar dades ambientals totals (sheet 1, footprint global)
 carrega_dades_ambientals_totals <- function(path) {
   df <- read_excel(path, sheet = 1) %>% clean_names()
 
@@ -119,6 +140,7 @@ carrega_dades_ambientals_totals <- function(path) {
   df %>% select(all_of(c("ingredient", impact_cols)))
 }
 
+# [01.5] Carregar factors d'emissions i ponderació (sheet 2)
 carrega_emissions <- function(path) {
   df <- read_excel(path, sheet=2) %>% clean_names()
   
@@ -154,14 +176,10 @@ carrega_emissions <- function(path) {
   return(df)
 }
 
-# ---------------------------
-# Funcions utilitàries per selecció d'origen d'un ingredient
-# ---------------------------
-# Obté la fila "default" d'un ingredient (default_origen == 1) si existeix
-
-
-
-# Retorna un df amb cada ingredient i un vector (llista) dels seus orígens
+############################################################
+# 02. HELPERS D'ORIGEN I APLICACIÓ D'OVERRIDES
+############################################################
+# [02.1] Retorna ingredient + llista d'orígens disponibles
 origens_per_ingredient <- function(dades_env_df) {
   
   ing_amb_origen <- dades_env_df %>% 
@@ -180,6 +198,7 @@ origens_per_ingredient <- function(dades_env_df) {
   return(ing_amb_origen)
 }
 
+# [02.2] Obté fila default d'un ingredient (default_origen == 1)
 get_default_row_for_ingredient <- function(dades_env_df, ingredient_name) {
   df <- dades_env_df %>% filter(ingredient == ingredient_name)
   if(nrow(df) == 0) return(NULL)
@@ -198,6 +217,7 @@ get_default_row_for_ingredient <- function(dades_env_df, ingredient_name) {
 # Lògica: per a cada ingredient a usar, busquem la fila dades_env amb ingredient+origin_override.
 # Si no existeix, fem servir la fila default (default_origen==1) i avisem.
 
+# [02.3] Aplica overrides d'ingredient-origen sobre dades ambientals
 apply_overrides_to_env <- function(dades_env_df, overrides_df) {
   # 1. Si no hi ha overrides, retornem el df original sense canvis
   if (is.null(overrides_df) || nrow(overrides_df) == 0) {
@@ -235,9 +255,9 @@ apply_overrides_to_env <- function(dades_env_df, overrides_df) {
 
 
 
-# ---------------------------
-# Càlculs: integra transport impacts amb la fila d'ingredient seleccionada
-# ---------------------------
+############################################################
+# 03. MOTOR DE CÀLCUL PRINCIPAL (AMB TRANSPORT)
+############################################################
 # Aquesta funció construeix la taula d'ingredients "active" per una solució (step)
 # Tenim en compte:
 # - les files de dades_dietes per al step,
@@ -248,6 +268,7 @@ apply_overrides_to_env <- function(dades_env_df, overrides_df) {
 #dades_dietes(), dades_env(), input$stepA, overrides_df = overrides(), transport_df = transport_df(),
 #ordre_dietes = ordre_dietes()
 
+# [03.1] Motor principal: càlcul d'una solució amb transport i overrides
 calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, overrides_df, 
                                           transport_df, ordre_dietes) {
   
@@ -377,14 +398,18 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
 }
  #---
 
+# [04.1] Placeholder per consum animal (pendent de desenvolupament)
 dades_consum_animals <- function(kg_table , final_df){
   #Reb el final_df amb tot calculat, i multiplica els 
 }
 
 
 
-  #-------------------------------------------------------------------------
+############################################################
+# 04. RESUMS I DADES DERIVADES
+############################################################
 
+# [04.2] Resum d'impacte per dieta (per kg)
 resum_per_dieta_from_joined <- function(joined_df) {
   
   
@@ -420,8 +445,7 @@ resum_per_dieta_from_joined <- function(joined_df) {
 
 
 
-################## 3###########################
-
+# [04.3] Resum d'impacte per dieta (per animal, segons kg consum)
 calcul_contribucio_total_per_animal <- function(joined_df , kg_table = NULL){
   
   # 2. Ens assegurem de seleccionar només les columnes que realment existeixen al DF
@@ -467,6 +491,7 @@ calcul_contribucio_total_per_animal <- function(joined_df , kg_table = NULL){
 
 
 # Contrib per ingredient (per dieta) ja disponible a joined_df
+# [04.4] Contribució per ingredient a partir de dades joined
 contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE, kg_table = NULL) {
   
   contrib_cols <- names(joined_df)[str_detect(names(joined_df), "^contrib_")]
@@ -485,10 +510,11 @@ contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE
   df_long
 }
 
-# ---------------------------
-# Plots i mapa
-# ---------------------------
+############################################################
+# 05. FUNCIONS DE GRÀFICS (ALINEADES AMB PESTANYES UI)
+############################################################
 
+# [05.1] Gràfic composició (ggplot)
 plot_composicio_gg <- function(joined_df, ordre_dietes = NULL) {
   # 1. Agrupamos por dieta e ingrediente para sumar las proporciones
   df <- joined_df %>% 
@@ -525,6 +551,7 @@ plot_composicio_gg <- function(joined_df, ordre_dietes = NULL) {
   
 }
 
+# [05.2] Gràfic composició (plotly)
 plot_composicio <- function(joined_df, ordre_dietes = NULL) {
   p <- plot_composicio_gg(joined_df, ordre_dietes)
   # El tooltip mostrará el ingrediente y el valor de 'prop' formateado
@@ -538,6 +565,7 @@ plot_composicio <- function(joined_df, ordre_dietes = NULL) {
 
 # Contribució per origen (ja tenim origen_region en joined_df)
 
+# [05.3] Agregació de contribució per origen
 contribucio_per_origen_from_joined <- function(joined_df) {
   
   # 1. Agrupem per dieta i origen
@@ -559,9 +587,10 @@ contribucio_per_origen_from_joined <- function(joined_df) {
 }
 
 
-########################################### CONTRIBUCIO PER ORIGEN  ########################################### 
+######################## 05.C CONTRIBUCIÓ PER ORIGEN ########################
 
 
+# [05.4] Visualització de contribució per origen (plotly facet)
 plot_origen_per_dieta_from_joined <- function(joined_df, impactes_sel = NULL, per_animal = FALSE, ordre_dietes = NULL) {
   
   req(impactes_sel) # Validació Shiny
@@ -609,11 +638,10 @@ plot_origen_per_dieta_from_joined <- function(joined_df, impactes_sel = NULL, pe
 }
 
 
-#---
-
-########################################### TOP INGREDIENTS  ########################################### 
+######################## 05.D TOP INGREDIENTS ########################
 
 
+# [05.5] Top N ingredients (ggplot)
 plot_topN_ingredients_per_dieta_gg <- function(joined_df, diet_sel, impacte_sel = "climate_change", 
                                                n = 5, per_animal = FALSE, kg_table = NULL, 
                                                bar_color = "#2c3e50", unitat_text = "") {
@@ -668,6 +696,7 @@ plot_topN_ingredients_per_dieta_gg <- function(joined_df, diet_sel, impacte_sel 
   
 }
 
+# [05.6] Top N ingredients (plotly)
 plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "climate_change", 
                                             n = 5, per_animal = FALSE, kg_table = NULL, 
                                             bar_color = "#2c3e50", unitat_text = "") {
@@ -689,14 +718,11 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
   ggplotly(p) %>% 
     layout(margin = list(l = 150, r = 50, b = 50, t = 50)) 
 }
-#################MAPAAA
+############################################################
+# 06. MAPA D'ORÍGENS
+############################################################
 
-
-
-# Descarreguem el mapa del món una sola vegada al principi
-#mapa_mundi <- download_map_data("custom/world")
-
-# Funció per processar els orígens (agrupant Europa a Espanya)
+# [06.1] Preparar dades de mapa (agrupar RER cap a ES)
 preparar_dades_mapa_full <- function(map_df) {
   req(map_df)
   
@@ -719,7 +745,7 @@ preparar_dades_mapa_full <- function(map_df) {
   return(df_resultat)
 }
 
-# Funció per dibuixar el mapa sense dependre de cap descàrrega externa
+# [06.2] Mapa dinàmic (highcharter)
 plot_map_final <- function(df, titol) {
   if (is.null(df) || nrow(df) == 0) return(NULL)
   
@@ -764,7 +790,7 @@ plot_map_final <- function(df, titol) {
     hc_credits(enabled = TRUE, text = "Dades Europa (RER) assignades a Espanya")
 }
 
-# Versió estàtica (ggplot) del mapa per poder exportar imatges combinades.
+# [06.3] Mapa estàtic (ggplot) per exportació
 plot_map_static_gg <- function(df, titol) {
   if (is.null(df) || nrow(df) == 0) {
     return(
@@ -809,27 +835,12 @@ plot_map_static_gg <- function(df, titol) {
     )
 }
 
-############################COMPROVACIO INGREDIENTS FALTANTS
-
-comprovar_ingredients_faltants <- function(df_dietes, df_ambientals) {
-  # 1. Obtenemos los ingredientes únicos de ambos archivos
-  # Usamos clean_names() indirectamente o asumimos que ya vienen limpios
-  ing_dietes <- unique(df_dietes$ingredient)
-  ing_env <- unique(df_ambientals$ingredient)
-  
-  # 2. Encontramos qué hay en dietas que NO está en ambientales
-  faltants <- setdiff(ing_dietes, ing_env)
-  
-  return(faltants)
-}
+############################################################
+# 07. SUPORT UI: DIFERÈNCIA A-B
+############################################################
 
 
-
-
-#----------------------------------------- COmparacio A vs B
-
-
-# Gráfico de Diferencias corregido (A - B)
+# [05.7] Diferències A-B (ggplot)
 plot_diferencies_AB_gg <- function(A_data, B_data, imp) {
   A_f <- A_data %>% filter(impacte == imp) %>% select(diet, valor_A = valor)
   B_f <- B_data %>% filter(impacte == imp) %>% select(diet, valor_B = valor)
@@ -850,14 +861,18 @@ plot_diferencies_AB_gg <- function(A_data, B_data, imp) {
   
 }
 
+# [05.8] Diferències A-B (plotly)
 plot_diferencies_AB <- function(A_data, B_data, imp) {
   p <- plot_diferencies_AB_gg(A_data, B_data, imp)
   ggplotly(p, tooltip = c("text", "y"))
 }
 
 
-########################## PERCETNANGE EMISSIONS ##################################
+############################################################
+# 08. SUPORT UI: DESGLOSSAMENT IMPACTE
+############################################################
 
+# [05.9] Desglossament ingredient vs transport (ggplot)
 plot_descomposicio_transport_ingredient_gg <- function(df_dietes, transport_df, impacte_sel) {
   
   # 1. Unim dades 
@@ -914,15 +929,19 @@ plot_descomposicio_transport_ingredient_gg <- function(df_dietes, transport_df, 
   
 }
 
+# [05.10] Desglossament ingredient vs transport (plotly)
 plot_descomposicio_transport_ingredient <- function(df_dietes, transport_df, impacte_sel) {
   p <- plot_descomposicio_transport_ingredient_gg(df_dietes, transport_df, impacte_sel)
   ggplotly(p)
 }
 
 
-######################## GRAFICAR FUNCIONS ###################################
+############################################################
+# 09. UTILITATS D'EXPORTACIÓ DE GRÀFICS
+############################################################
 
 # Funció per exportar llistes de gràfics de forma dinàmica
+# [05.11] Exportador genèric de llistes de gràfics
 exportar_llista_grafics <- function(llista_plots, file_path, n_cols = 3, base_height = 5, base_width = 15) {
   req(length(llista_plots) > 0)
   
@@ -951,8 +970,24 @@ exportar_llista_grafics <- function(llista_plots, file_path, n_cols = 3, base_he
   )
 }
 
-### ENVIRONMENTAL FOOTPRINT ###
+############################################################
+# 10. VERIFICACIONS DE QUALITAT DE DADES
+############################################################
 
+# [10.1] Verificació d'ingredients presents a dietes i ambientals
+comprovar_ingredients_faltants <- function(df_dietes, df_ambientals) {
+  # 1. Obtenemos los ingredientes únicos de ambos archivos
+  # Usamos clean_names() indirectamente o asumimos que ya vienen limpios
+  ing_dietes <- unique(df_dietes$ingredient)
+  ing_env <- unique(df_ambientals$ingredient)
+  
+  # 2. Encontramos qué hay en dietas que NO está en ambientales
+  faltants <- setdiff(ing_dietes, ing_env)
+  
+  return(faltants)
+}
+
+# [10.2] Verificar correspondència de categories d'impacte (sheet1 vs sheet2)
 fn_verify_impacts <- function(df_env_totals, df_emissions) {
   
   cols_sheet1 <- setdiff(names(df_env_totals), "ingredient")
@@ -974,6 +1009,7 @@ fn_verify_impacts <- function(df_env_totals, df_emissions) {
   )
 }
 
+# [10.3] Verificar ingredients (dietes vs ambientals totals)
 fn_verify_ingredients <- function(df_dietes, df_env_totals) {
   
   ing_dietes <- df_dietes$ingredient %>%
@@ -1006,8 +1042,11 @@ fn_verify_ingredients <- function(df_dietes, df_env_totals) {
   )
 }
 
-#### CALCUL CONTRIBUCIO DIETES ####
+############################################################
+# 11. CÀLCUL GLOBAL DE PETJADA (TOTS ELS STEPS)
+############################################################
 
+# [11.1] Càlcul massiu de petjada per tots els steps i dietes
 fn_calcul_contribucio_totes_dietes <- function(df_dietes, df_env_totals, df_emissions) {
   
   dt_dietes <- as.data.table(df_dietes)
@@ -1098,14 +1137,14 @@ fn_calcul_contribucio_totes_dietes <- function(df_dietes, df_env_totals, df_emis
   )
 }
 
-#######
-# Arrays de dades
-#######
+############################################################
+# 12. CONFIGURACIÓ COMPARTIDA DE COMPONENTS UI
+############################################################
 
 
 
 
-# 1. Array per creació de ValueBoxes a 'Visio General'
+# [12.1] Configuració de valueBoxes per a la pestanya Visió general
 box_config <- list(
   list(id = "box_ingredients", title = "Ingredients",        color = "green",  var = "ingredient", source = "env"),
   list(id = "box_origins",     title = "Origins (Countries)", color = "blue",   var = "origen",     source = "env"),

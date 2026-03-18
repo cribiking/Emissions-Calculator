@@ -3,12 +3,26 @@
 # Server
 # ---------------------------
 
-#Ordre del document:
-
-#   " #--- " : el conjunt de caràcters entre cometes, representa el final d'un bloc de codi
-
-
-######################
+# ============================================================
+# GUIA D'ORGANITZACIÓ (alineada amb ui.R)
+# ============================================================
+# 00. Càrrega de fitxers i validacions d'entrada
+# 01. Controls de capçalera (steps, ordres, export resum)
+# 01.B Configuració avançada superior (overrides)
+# 01.C Nucli base de càlcul (solucions A/B amb transport)
+# 02. Pestanya Visió general
+# 03. Pestanya Composició per dieta
+# 04. Pestanya Impactes per dieta
+# 05. Pestanya Contribució per origen
+# 06. Pestanya Top ingredients
+# 07. Pestanya Mapa d'orígens
+# 08. Pestanya Distribució
+# 09. Pestanya Diferència A-B
+# 10. Pestanya Desglossament impacte
+# 11. Pestanya Contribució total (per animal)
+# 13. Pestanya Environmental Footprint i comparatives globals
+#
+# Nota: els separadors "#---" marquen el final d'un bloc funcional.
 
 
 
@@ -16,7 +30,7 @@
 server <- function(input, output, session) {
   
   
-  ###################################### CÀRREGA DE FITXERS ##########################################
+  ############################## 00. CÀRREGA DE FITXERS ###############################################
   
   dades_env <- reactive({
     req(input$file_env)
@@ -124,7 +138,7 @@ server <- function(input, output, session) {
   
   #---
   
-  ################## SELECCIO D'STEPS I FILTRES #################################
+  ############################## 01. CONTROLS DE CAPÇALERA ############################################
   
   # UI per steps
   output$steps_ui <- renderUI({
@@ -140,7 +154,7 @@ server <- function(input, output, session) {
   #---
  
   
-  ########################## NAVBAR SELECCIO ORIGENS , INGREDIENTS , OVERRIDES, ORDRE DIETES, DOWNLOAD CSV ###############################
+  #################### 01.A CONTROLS TRANSVERSALS (ORDRE DIETES + EXPORT RESUM) #######################
 
   # ordre de dietes (segons arxiu)
   
@@ -152,18 +166,152 @@ server <- function(input, output, session) {
     #'pull' transofrma la columna de la taula en un vector convencional de R
     df %>% distinct(diet) %>% pull(diet)
   })
-  
-  
-  # Select ingredient UI options
-  observe({
-    env <- dades_env()
-    req(env)
-    ingredients <- unique(env$ingredient)
-    updateSelectInput(session, "sel_ingredient", choices = ingredients)
+
+  ################### 01.B CONFIGURACIÓ AVANÇADA: OVERRIDES (UI SUPERIOR) #############################
+
+  # --- 1. Selector d'Ingredients (Només els que tenen > 1 origen) ---
+  output$sel_ingredient_ui <- renderUI({
+    req(dades_env())
+
+    df_resum_origens <- origens_per_ingredient(dades_env())
+
+    # Filtrem ingredients amb múltiples opcions
+    ingredients_amb_opcions <- df_resum_origens %>%
+      filter(lengths(origen) > 1) %>%
+      pull(ingredient) # Pull retorna el vector de noms
+
+    selectInput("sel_ingredient",
+                label = "Ingredient:",
+                choices = ingredients_amb_opcions)
+  })
+
+  # --- 2. Selector d'Orígens (Dinàmic segons l'ingredient triat) ---
+  output$sel_origen_ui <- renderUI({
+    req(input$sel_ingredient, dades_env())
+
+    # Tornem a cridar la funció resumida
+    df_resum <- origens_per_ingredient(dades_env())
+
+    # Busquem el vector d'orígens de l'ingredient seleccionat
+    llista_origens <- df_resum %>%
+      filter(ingredient == input$sel_ingredient) %>%
+      pull(origen) %>%
+      unlist() # Convertim la llista de la cel·la en un vector normal
+
+    selectInput("sel_origen",
+                label = paste("Orígens per a", input$sel_ingredient),
+                choices = llista_origens)
+  })
+
+  # AL aplicar override, reiniciarem la taula que conte els calculs de les emissions totals amb el transport amb els nous paisos
+  #El control de si apliquem o no overrides es fa dins de la funcio de global 'calcula_solucio_amb_transport'
+  observeEvent(input$apply_override, {
+    req(input$sel_ingredient, input$sel_origen)
+
+    ing <- input$sel_ingredient
+    orig <- input$sel_origen
+
+    # 1. Llegim el contingut actual del reactiveVal
+    current_overrides <- OVERRIDES()
+
+    # 2. Creem la nova fila
+    nova_fila <- tibble(ingredient = ing, origen_selected = orig)
+
+    # 3. Lògica d'actualització:
+    # Si l'ingredient ja existia, l'eliminem primer per evitar duplicats
+    # i després afegim la nova selecció.
+    updated_overrides <- current_overrides %>%
+      filter(ingredient != ing) %>%
+      bind_rows(nova_fila)
+
+    # 4. Guardem el nou tibble dins del reactiveVal
+    OVERRIDES(updated_overrides)
+
+    # Opcional: Print per consola per verificar que s'ha guardat bé
+    print(OVERRIDES())
+
+    showNotification(
+      paste0("Override aplicat: ", ing, " -> ", orig),
+      type = "message"
+    )
+  })
+
+  # Reset OVERRIDES
+  observeEvent(input$reset_overrides, {
+
+    # Tornem a posar el tibble buit amb l'estructura de columnes exacta
+    OVERRIDES(tibble(ingredient = character(0), origen_selected = character(0)))
+
+    showNotification("Overrides eliminats. Recalculant dades inicials...", type = "message")
+  })
+
+  #---
+
+  ##################### 01.C NUCLI BASE: SOLUCIONS A/B AMB TRANSPORT ################################
+
+  # solucions calculades (joined) amb transport i OVERRIDES
+
+  # Aquesta funció s'executarà automàticament quan:
+  # 1. Canviïn els fitxers carregats
+  # 2. Canviï el 'step' al header
+  # 3. EXECUTIS OVERRIDES(updated_overrides) en el teu observeEvent
+
+  solA_joined_transport <- reactive({
+
+    req(dades_env(), dades_dietes(), transport_df()  ,input$stepA)
+
+    # 2. Fem una crida a OVERRIDES() aquí dins.
+    # Això crea el "vincle". Quan facis el reset, aquesta funció es despertarà.
+    actual_overrides <- OVERRIDES()
+
+
+    calculate <- calcula_solucio_amb_transport(dades_dietes(),
+                                               dades_env(),
+                                               input$stepA,
+                                               overrides_df = actual_overrides,
+                                               transport_df = transport_df(),
+                                               ordre_dietes = ordre_dietes()
+    )
+
+    validate(need(nrow(calculate) > 0, "Solució A (step) no té dades o hi ha un error"))
+
+    return(calculate)
+  })
+
+  solB_joined_transport <- reactive({
+
+    req(dades_env(), dades_dietes(), transport_df() ,input$stepB)
+
+    # 2. Fem una crida a OVERRIDES() aquí dins.
+    # Això crea el "vincle". Quan facis el reset, aquesta funció es despertarà.
+    actual_overrides <- OVERRIDES()
+
+    calculate <- calcula_solucio_amb_transport(dades_dietes(),
+                                               dades_env(),
+                                               input$stepB,
+                                               overrides_df = actual_overrides,
+                                               transport_df = transport_df(),
+                                               ordre_dietes = ordre_dietes()
+    )
+
+    validate(need(nrow(calculate) > 0, "Solució B (step) no té dades o hi ha un error"))
+
+    return(calculate)
+  })
+
+  #---------------------------------------
+
+  ## no utilitzat, revisar per a que serveix 'plot_impacte_A_vs_B'
+  output$plot_impacte_A_vs_B <- renderPlotly({
+    if(input$mostrar_per_animal) {
+      plot_impacte_A_vs_B_generic(resumA_animal(), resumB_animal(), impactes_sel = input$impactes_sel, per_animal = TRUE)
+    } else {
+      plot_impacte_A_vs_B_generic(resumA_kg(), resumB_kg(), impactes_sel = input$impactes_sel, per_animal = FALSE)
+    }
   })
   
   
-  
+
   # DOWNLOAD CSV
   
   output$download_summary <- downloadHandler(
@@ -186,7 +334,7 @@ server <- function(input, output, session) {
   
   #---
  
-  ######################################### VISIO GENERAL #######################################################3
+  ############################## 02. PESTANYA: VISIÓ GENERAL ###########################################
   
   #Creació valueBox per visualitzar dades a visio general
   
@@ -213,7 +361,7 @@ server <- function(input, output, session) {
   
   #---
   
-  ########################################### COMPOSICIO PER DIETA #########################################
+  ############################## 03. PESTANYA: COMPOSICIÓ PER DIETA ####################################
 
   llista_plots_composicio <- reactive({
     req(solA_joined_transport(), solB_joined_transport(), ordre_dietes())
@@ -262,7 +410,7 @@ server <- function(input, output, session) {
   })
   
   
-  ############################################# IMPACTE PER DIETA ############################################
+  ############################## 04. PESTANYA: IMPACTES PER DIETA ######################################
   
   # Aquesta llista s'actualitza sola quan canvien els inputs o les dades
   llista_plots_comparatius <- reactive({
@@ -335,7 +483,7 @@ server <- function(input, output, session) {
   
   #---
   
-  ########################################### CONTRIBUCIO PER ORIGEN  ########################################### 
+  ############################## 05. PESTANYA: CONTRIBUCIÓ PER ORIGEN ##################################
   
   # --- SOLUCIÓ A ---
   output$plot_origen_A_dinamic <- renderUI({
@@ -483,7 +631,7 @@ server <- function(input, output, session) {
   
   #---
   
-  ########################################### TOP INGREDIENTS  ########################################### 
+  ############################## 06. PESTANYA: TOP INGREDIENTS #########################################
   
   
   # --- TOP INGREDIENTS SOLUCIÓ A ---
@@ -650,7 +798,7 @@ server <- function(input, output, session) {
   
   #---
   
-  ############################################ MAPA  ########################################### 
+  ############################## 07. PESTANYA: MAPA D'ORÍGENS ##########################################
   # Mapa Solució A
   output$map_solA <- renderHighchart({
     req(solA_joined_transport(), dades_env())
@@ -731,7 +879,7 @@ server <- function(input, output, session) {
     }
   )
   
-  ############################################ DISTRIBUCIÓ ############################################ 
+  ############################## 08. PESTANYA: DISTRIBUCIÓ ##############################################
 
   llista_plots_distribucio <- reactive({
     req(input$impactes_sel, resumA_kg(), resumB_kg())
@@ -799,7 +947,7 @@ server <- function(input, output, session) {
   #---
   
   
-  ############################################ DIFERENCIA DIETA A-B ############################################ 
+  ############################## 09. PESTANYA: DIFERÈNCIA A-B ###########################################
 
   llista_plots_diff <- reactive({
     req(input$impactes_sel, resumA_kg(), resumB_kg())
@@ -869,7 +1017,7 @@ server <- function(input, output, session) {
   
   #---
   
-  ############################################ VERIFICACIO INGREDIENTS ############################################ 
+  ######################### 09.A SUPORT: VERIFICACIÓ D'INGREDIENTS FALTANTS ############################
   
   
   # --- Lògica d'ingredients faltants al Server ---
@@ -928,7 +1076,7 @@ server <- function(input, output, session) {
   #---
   
   
-  ################################# PERCETNANGE EMISSIONS ##################################
+  ############################## 10. PESTANYA: DESGLOSSAMENT IMPACTE ###################################
 
   llista_plots_desglossament <- reactive({
     req(solA_joined_transport(), solB_joined_transport(), transport_df(), input$impactes_sel)
@@ -1028,7 +1176,7 @@ server <- function(input, output, session) {
   #---
   
 
-  ################################# # Taula editable per kg per dieta (inicialitzada amb 1 per dieta) ############################
+  ############################## 11. PESTANYA: CONTRIBUCIÓ TOTAL (PER ANIMAL) ##########################
   
   kg_table <- reactiveVal(NULL)
   observeEvent(ordre_dietes(), {
@@ -1066,7 +1214,7 @@ server <- function(input, output, session) {
   
   #---
   
-  ###################################### CONTRIBUCIO TOTAL #############################################
+  ########################## 11.A GRÀFICS CONTRIBUCIÓ TOTAL A/B ########################################
 
   llista_plots_contrib_total <- reactive({
     req(input$impactes_sel, resumA_animal(), resumB_animal())
@@ -1204,157 +1352,7 @@ server <- function(input, output, session) {
   
   
   
-  ################################## OVERRIDES #########################################3333
-  
-  
-  # --- 1. Selector d'Ingredients (Només els que tenen > 1 origen) ---
-  output$sel_ingredient_ui <- renderUI({
-    req(dades_env())
-    
-    df_resum_origens <- origens_per_ingredient(dades_env())
-    
-    # Filtrem ingredients amb múltiples opcions
-    ingredients_amb_opcions <- df_resum_origens %>%
-      filter(lengths(origen) > 1) %>%
-      pull(ingredient) # Pull retorna el vector de noms
-    
-    selectInput("sel_ingredient", 
-                label = "Ingredient:", 
-                choices = ingredients_amb_opcions)
-  })
-  
-  # --- 2. Selector d'Orígens (Dinàmic segons l'ingredient triat) ---
-  output$sel_origen_ui <- renderUI({
-    req(input$sel_ingredient, dades_env())
-    
-    # Tornem a cridar la funció resumida
-    df_resum <- origens_per_ingredient(dades_env())
-    
-    # Busquem el vector d'orígens de l'ingredient seleccionat
-    llista_origens <- df_resum %>% 
-      filter(ingredient == input$sel_ingredient) %>% 
-      pull(origen) %>% 
-      unlist() # Convertim la llista de la cel·la en un vector normal
-    
-    selectInput("sel_origen", 
-                label = paste("Orígens per a", input$sel_ingredient), 
-                choices = llista_origens)
-  })
-  
-  
-  # AL aplicar override, reiniciarem la taula que conte els calculs de les emissions totals amb el transport amb els nous paisos
-  #El control de si apliquem o no overrides es fa dins de la funcio de global 'calcula_solucio_amb_transport'
-  observeEvent(input$apply_override, {
-    req(input$sel_ingredient, input$sel_origen)
-    
-    ing <- input$sel_ingredient
-    orig <- input$sel_origen
-    
-    # 1. Llegim el contingut actual del reactiveVal
-    current_overrides <- OVERRIDES()
-    
-    # 2. Creem la nova fila
-    nova_fila <- tibble(ingredient = ing, origen_selected = orig)
-    
-    # 3. Lògica d'actualització:
-    # Si l'ingredient ja existia, l'eliminem primer per evitar duplicats 
-    # i després afegim la nova selecció.
-    updated_overrides <- current_overrides %>%
-      filter(ingredient != ing) %>%
-      bind_rows(nova_fila)
-    
-    # 4. Guardem el nou tibble dins del reactiveVal
-    OVERRIDES(updated_overrides)
-    
-    # Opcional: Print per consola per verificar que s'ha guardat bé
-    print(OVERRIDES())
-    
-    showNotification(
-      paste0("Override aplicat: ", ing, " -> ", orig), 
-      type = "message"
-    )
-  })
-  
-  # Reset OVERRIDES
-  observeEvent(input$reset_overrides, { 
-    
-    # Tornem a posar el tibble buit amb l'estructura de columnes exacta
-    OVERRIDES(tibble(ingredient = character(0), origen_selected = character(0)))
-    
-    showNotification("Overrides eliminats. Recalculant dades inicials...", type = "message") 
-  })
-  
-  
-  
-  #---
-  
-  ################### CRIDA A LA FUNCIO calcula_solucio_amb_transport ####################################
-  
-  # solucions calculades (joined) amb transport i OVERRIDES
-  
-  # Aquesta funció s'executarà automàticament quan:
-  # 1. Canviïn els fitxers carregats
-  # 2. Canviï el 'step' al header
-  # 3. EXECUTIS OVERRIDES(updated_overrides) en el teu observeEvent
-  
-  solA_joined_transport <- reactive({
-    
-    req(dades_env(), dades_dietes(), transport_df()  ,input$stepA)
-    
-    # 2. Fem una crida a OVERRIDES() aquí dins. 
-    # Això crea el "vincle". Quan facis el reset, aquesta funció es despertarà.
-    actual_overrides <- OVERRIDES()
-    
-    
-    calculate <- calcula_solucio_amb_transport(dades_dietes(), 
-                                               dades_env(), 
-                                               input$stepA,
-                                               overrides_df = actual_overrides, 
-                                               transport_df = transport_df(),
-                                               ordre_dietes = ordre_dietes()
-    )
-    
-    validate(need(nrow(calculate) > 0, "Solució A (step) no té dades o hi ha un error"))
-    
-    return(calculate)
-  })
-  
-  solB_joined_transport <- reactive({
-    
-    req(dades_env(), dades_dietes(), transport_df() ,input$stepB)
-    
-    # 2. Fem una crida a OVERRIDES() aquí dins. 
-    # Això crea el "vincle". Quan facis el reset, aquesta funció es despertarà.
-    actual_overrides <- OVERRIDES()
-    
-    calculate <- calcula_solucio_amb_transport(dades_dietes(), 
-                                               dades_env(), 
-                                               input$stepB,
-                                               overrides_df = actual_overrides, 
-                                               transport_df = transport_df(),
-                                               ordre_dietes = ordre_dietes()
-    )
-    
-    validate(need(nrow(calculate) > 0, "Solució B (step) no té dades o hi ha un error"))
-    
-    return(calculate)
-  })
-  
-  
-  
-  #---------------------------------------
-  
-  ## no utilitzat, revisar per a que serveix 'plot_impacte_A_vs_B'
-  
-  output$plot_impacte_A_vs_B <- renderPlotly({
-    if(input$mostrar_per_animal) {
-      plot_impacte_A_vs_B_generic(resumA_animal(), resumB_animal(), impactes_sel = input$impactes_sel, per_animal = TRUE)
-    } else {
-      plot_impacte_A_vs_B_generic(resumA_kg(), resumB_kg(), impactes_sel = input$impactes_sel, per_animal = FALSE)
-    }
-  })
-  
-  ### ENVIRONMENTAL FOOTPRINT ###
+  ############################## 13. PESTANYA: ENVIRONMENTAL FOOTPRINT ##################################
   
   rv_verify_impacts <- reactive({
     req(dades_env_totals(), environmental_df())
@@ -1489,7 +1487,7 @@ server <- function(input, output, session) {
     )
   })
   
-  #### CALCUL CONTRIBUCIO DIETES A I B ####
+  ########################### 13.A COMPARATIVA A/B (STEPS SELECCIONATS) ################################
   
   # Gràfic comparatiu de les DUES dietes seleccionades (Step A vs Step B)
   output$plot_comparativa_AB <- renderPlotly({
@@ -1659,7 +1657,7 @@ server <- function(input, output, session) {
     )
   })
   
-  #### CALCUL CONTRIBUCIO DIETES ####
+  ############################ 13.B CÀLCUL GLOBAL DE TOTS ELS STEPS ####################################
   
   rv_contribucio_totes <- reactive({
     req(dades_dietes(), dades_env_totals(), environmental_df())
