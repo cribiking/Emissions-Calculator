@@ -125,6 +125,17 @@ ui <- dashboardPage(
                                 h5("Llistat Dietes: Solució B", style = "text-align: center; font-weight: bold;")),
                             DTOutput("tbl_dietes_B")
                      )
+                   ),
+                   fluidRow(
+                     column(12,
+                       div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-bottom: 3px solid #34495e; margin-bottom:15px;",
+                         br(),
+                         div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #f1c40f;",
+                             h4("Integritat de la Base de Dades", style = "font-weight: bold; margin-left: 10px;")),
+                         br(),
+                         uiOutput("aviso_faltantes_ui")
+                       )
+                     )
                    )
           ),
           
@@ -316,16 +327,6 @@ ui <- dashboardPage(
                             uiOutput("plots_totals_emissio")
                      )
                    )
-          ),
-          
-          # --- Pestanya Verificació ---
-          
-          tabPanel("Verificació d'Ingredients",
-                   br(),
-                   div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #f1c40f;",
-                       h4("Integritat de la Base de Dades", style = "font-weight: bold; margin-left: 10px;")),
-                   br(),
-                   uiOutput("aviso_faltantes_ui")
           ),
           
           # --- Contribució Total---
