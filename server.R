@@ -1533,7 +1533,7 @@ server <- function(input, output, session) {
       hovertemplate = paste(
         "<b>%{y}</b><br>",
         "Fase: %{data.name}<br>",
-        "Valor: %{x:.6f}<extra></extra>"
+        "Valor: %{x:.6f} Pt<extra></extra>"
       )
     ) %>%
       layout(
@@ -1592,7 +1592,7 @@ server <- function(input, output, session) {
     
     datatable(
       taula %>%
-        mutate(across(where(is.numeric), ~ formatC(.x, format = "f", digits = 6))),
+        mutate(across(where(is.numeric), ~ format_num_pt(.x, 6))),
       extensions = 'Buttons',
       options = list(
         dom = 'Bfrtip',
@@ -1645,13 +1645,13 @@ server <- function(input, output, session) {
         column(4,
                div(style = "background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center;",
                    h5(style = "margin: 0; color: #1565c0;", paste("Solució A (Step", input$stepA, ")")),
-                   h3(style = "margin: 10px 0; color: #0d47a1;", formatC(total_A, format = "f", digits = 6))
+                   h3(style = "margin: 10px 0; color: #0d47a1;", format_num_pt(total_A, 6))
                )
         ),
         column(4,
                div(style = "background: #fff3e0; padding: 15px; border-radius: 8px; text-align: center;",
                    h5(style = "margin: 0; color: #e65100;", paste("Solució B (Step", input$stepB, ")")),
-                   h3(style = "margin: 10px 0; color: #bf360c;", formatC(total_B, format = "f", digits = 6))
+                   h3(style = "margin: 10px 0; color: #bf360c;", format_num_pt(total_B, 6))
                )
         ),
         column(4,
@@ -1691,7 +1691,7 @@ server <- function(input, output, session) {
       res$resum_per_step %>%
         mutate(
           step = as.integer(step),
-          petjada_total_step = formatC(petjada_total_step, format = "f", digits = 6)
+          petjada_total_step = format_num_pt(petjada_total_step, 6)
         ) %>%
         arrange(step),
       colnames = c("Step", "Petjada Total"),
@@ -1724,8 +1724,7 @@ server <- function(input, output, session) {
       arrange(step) %>%
       mutate(
         step = as.integer(step),
-        across(-step, ~ formatC(.x, format = "f", digits = 6))
-      )
+        across(-step, ~ format_num_pt(.x, 6)))
     
     datatable(
       taula_pivot,
@@ -1753,7 +1752,7 @@ server <- function(input, output, session) {
       res$resum_per_dieta_impacte %>%
         mutate(
           step = as.integer(step),
-          total_ponderada = formatC(total_ponderada, format = "f", digits = 6)
+          total_ponderada = format_num_pt(total_ponderada, 6)
         ) %>%
         arrange(step, diet, impacte),
       colnames = c("Step", "Fase", "Impacte", "Total Ponderat"),
@@ -1781,25 +1780,52 @@ server <- function(input, output, session) {
         diet = factor(diet, levels = c("ENTRADA", "CREIXEMENT", "ENGREIX", "ACABAT"))
       )
     
-    p <- ggplot(df_plot, aes(x = step, y = petjada_total, fill = diet)) +
-      geom_col(position = "stack", color = "white", linewidth = 0.2) +
-      scale_fill_brewer(palette = "Set2") +
-      coord_flip() +
-      labs(
-        title = "Petjada Ambiental per Step",
-        subtitle = "Desglossament per fase de creixement",
-        x = "Step",
-        y = "Petjada Total Ponderada",
-        fill = "Fase"
-      ) +
-      theme_minimal() +
-      theme(
-        text = element_text(face = "bold"),
-        legend.position = "bottom"
-      )
+    colors_fases <- c(
+      "ENTRADA" = "#66c2a5",
+      "CREIXEMENT" = "#fc8d62", 
+      "ENGREIX" = "#8da0cb",
+      "ACABAT" = "#e78ac3"
+    )
     
-    ggplotly(p) %>%
-      layout(legend = list(orientation = "h", x = 0, y = -0.15))
+    plot_ly(
+      df_plot,
+      x = ~petjada_total,
+      y = ~step,
+      color = ~diet,
+      colors = colors_fases,
+      type = "bar",
+      orientation = "h",
+      hovertemplate = paste(
+        "<b>Step %{y}</b><br>",
+        "Fase: %{data.name}<br>",
+        "Valor: %{x:.6f} Pt<extra></extra>"
+      )
+    ) %>%
+      layout(
+        barmode = "stack",
+        title = list(
+          text = "<b>Petjada Ambiental per Step</b><br><sub>Desglossament per fase de creixement</sub>",
+          font = list(size = 16)
+        ),
+        xaxis = list(
+          title = list(
+            text = "Petjada Total Ponderada (Pt)",
+            font = list(size = 12),
+            standoff = 30
+          )
+        ),
+        yaxis = list(
+          title = "Step"
+        ),
+        legend = list(
+          orientation = "h",
+          x = 0.5,
+          xanchor = "center",
+          y = -0.15,
+          traceorder = "reversed"
+        ),
+        margin = list(l = 80, r = 50, t = 80, b = 100)
+      )
   })
   
   output$info_totes_dietes <- renderUI({
