@@ -1046,6 +1046,11 @@ fn_verify_ingredients <- function(df_dietes, df_env_totals) {
 # 11. CÀLCUL GLOBAL DE PETJADA (TOTS ELS STEPS)
 ############################################################
 
+# Formateja amb 6f i unitat de Pt (Punts)
+format_num_pt <- function(x, decimals = 6) {
+  paste0(formatC(x, format = "f", digits = decimals), " Pt")
+}
+
 # [11.1] Càlcul massiu de petjada per tots els steps i dietes
 fn_calcul_contribucio_totes_dietes <- function(df_dietes, df_env_totals, df_emissions) {
   
