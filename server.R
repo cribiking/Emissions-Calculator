@@ -28,8 +28,18 @@
 
 
 server <- function(input, output, session) {
-  
-  
+
+  # Cargar librerías necesarias para Gemini ANTES de cargar las funciones
+  suppressPackageStartupMessages({
+    require(httr, quietly = TRUE)
+    require(jsonlite, quietly = TRUE)
+    require(base64enc, quietly = TRUE)
+    require(markdown, quietly = TRUE)
+  })
+
+  # Cargar funciones de Gemini
+  source('gemini_functions.R', encoding = 'UTF-8')
+
   ############################## 00. CÀRREGA DE FITXERS ###############################################
   
   dades_env <- reactive({
@@ -273,7 +283,10 @@ server <- function(input, output, session) {
                                                ordre_dietes = ordre_dietes()
     )
 
-    validate(need(nrow(calculate) > 0, "Solució A (step) no té dades o hi ha un error"))
+    # Verificar si calculate es valido y tiene datos
+    if(is.null(calculate) || !is.data.frame(calculate) || nrow(calculate) == 0) {
+      return(NULL)  # Retornar NULL, req() en los outputs manejará esto
+    }
 
     return(calculate)
   })
@@ -294,7 +307,10 @@ server <- function(input, output, session) {
                                                ordre_dietes = ordre_dietes()
     )
 
-    validate(need(nrow(calculate) > 0, "Solució B (step) no té dades o hi ha un error"))
+    # Verificar si calculate es valido y tiene datos
+    if(is.null(calculate) || !is.data.frame(calculate) || nrow(calculate) == 0) {
+      return(NULL)  # Retornar NULL, req() en los outputs manejará esto
+    }
 
     return(calculate)
   })
@@ -364,18 +380,34 @@ server <- function(input, output, session) {
   ############################## 03. PESTANYA: COMPOSICIÓ PER DIETA ####################################
 
   llista_plots_composicio <- reactive({
-    req(solA_joined_transport(), solB_joined_transport(), ordre_dietes())
+    # Verificar que ambos datasets tienen datos (no solo que existan)
+    data_a <- solA_joined_transport()
+    data_b <- solB_joined_transport()
+
+    # Si alguno está vacío o es NULL, retornar lista vacía
+    if(is.null(data_a) || nrow(data_a) == 0 || is.null(data_b) || nrow(data_b) == 0) {
+      return(list())
+    }
 
     list(
-      plot_composicio_gg(solA_joined_transport(), ordre_dietes = ordre_dietes()) +
-        labs(title = "Estructura Solució A"),
-      plot_composicio_gg(solB_joined_transport(), ordre_dietes = ordre_dietes()) +
-        labs(title = "Estructura Solució B")
+      plot_composicio_gg(data_a, ordre_dietes = ordre_dietes()) +
+        labs(title = "Estructura Solucio A"),
+      plot_composicio_gg(data_b, ordre_dietes = ordre_dietes()) +
+        labs(title = "Estructura Solucio B")
     )
   })
-  
-  output$plot_comp_A <- renderPlotly({ plot_composicio(solA_joined_transport(), ordre_dietes = ordre_dietes()) })
-  output$plot_comp_B <- renderPlotly({ plot_composicio(solB_joined_transport(), ordre_dietes = ordre_dietes()) })
+
+  output$plot_comp_A <- renderPlotly({
+    data_a <- solA_joined_transport()
+    req(data_a)  # Detener si es NULL
+    plot_composicio(data_a, ordre_dietes = ordre_dietes())
+  })
+
+  output$plot_comp_B <- renderPlotly({
+    data_b <- solB_joined_transport()
+    req(data_b)  # Detener si es NULL
+    plot_composicio(data_b, ordre_dietes = ordre_dietes())
+  })
 
   output$download_comp <- downloadHandler(
     filename = function() {
@@ -1855,5 +1887,241 @@ server <- function(input, output, session) {
       )
     )
   })
-  
+
+  ################################################################################
+  # HANDLERS PARA BOTONES DE EXPLICACIÓN CON IA
+  ################################################################################
+
+  # Helper function para capturar gráficos del entorno
+  get_plots_from_env <- function(plot_names) {
+    plots <- list()
+    for (name in plot_names) {
+      if (exists(name, envir = .GlobalEnv)) {
+        plots[[name]] <- get(name, envir = .GlobalEnv)
+      }
+    }
+    return(plots)
+  }
+
+  # AI Explicar Composició
+  observeEvent(input$ai_explain_comp, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_comp")
+      plots <- list(plot_comp_A(), plot_comp_B())
+      respuesta <- preparar_grafics_per_gemini(plots,
+        context_adicional = "Concentra't en les diferències de composició entre les dues solucions.",
+        n_cols = 2)
+      removeNotification("ai_loading_comp")
+      output$ai_response_comp <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_comp")
+      output$ai_response_comp <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Impactes
+  observeEvent(input$ai_explain_impactes, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_impactes")
+      plots <- llista_plots_comparatius()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Analitza els impactes seleccionats i identifica els patrons més rellevants entre les dues solucions.",
+          n_cols = 3)
+      } else {
+        respuesta <- "No hi ha gràfics disponibles. Assegura't que has seleccionat cap a menys una métrica d'impacte."
+      }
+      removeNotification("ai_loading_impactes")
+      output$ai_response_impactes <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_impactes")
+      output$ai_response_impactes <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Origen
+  observeEvent(input$ai_explain_origen, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_origen")
+      plots <- llista_plots_origen()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Analitza la distribució geogràfica dels orígens. Identifica els countries que més contribueixen als impactes i el seu pes relatiu.",
+          n_cols = 2)
+      } else {
+        respuesta <- "No hi ha gràfics disponibles per a origen."
+      }
+      removeNotification("ai_loading_origen")
+      output$ai_response_origen <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_origen")
+      output$ai_response_origen <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Top Ingredients
+  observeEvent(input$ai_explain_top, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_top")
+      plots <- llista_plots_top()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Identifica els ingredients que més contribueixen als impactes seleccionats. Proposa alternatives més sostenibles.",
+          n_cols = 2)
+      } else {
+        respuesta <- "No hi ha gràfics disponibles per a top ingredients. Selecciona cap a menys una métrica."
+      }
+      removeNotification("ai_loading_top")
+      output$ai_response_top <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_top")
+      output$ai_response_top <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Mapes
+  observeEvent(input$ai_explain_mapes, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_mapes")
+      plots <- llista_plots_mapes()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Analitza els mapes geogràfics. Identifica les regions amb mayor impacte i proposa estratègies de sourcing més sostenible.",
+          n_cols = 1)
+      } else {
+        respuesta <- "No hi ha mapes disponibles."
+      }
+      removeNotification("ai_loading_mapes")
+      output$ai_response_mapes <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_mapes")
+      output$ai_response_mapes <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Distribució
+  observeEvent(input$ai_explain_distribucio, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_distribucio")
+      plots <- llista_plots_distribucio()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Analitza la distribució estadística dels impactes. Identifica outliers i dispels de variabilitat entre dietes.",
+          n_cols = 3)
+      } else {
+        respuesta <- "No hi ha gràfics de distribució disponibles."
+      }
+      removeNotification("ai_loading_distribucio")
+      output$ai_response_distribucio <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_distribucio")
+      output$ai_response_distribucio <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Diferència A-B
+  observeEvent(input$ai_explain_diff, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_diff")
+      plots <- llista_plots_diff()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Compara les dues solucions (Step A vs Step B). Identifica quins impactes milloren, quins empitjoren, i quines són les causes principals.",
+          n_cols = 2)
+      } else {
+        respuesta <- "No hi ha diferències per mostrar. Assegura't que has seleccionat dues solucions diferents."
+      }
+      removeNotification("ai_loading_diff")
+      output$ai_response_diff <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_diff")
+      output$ai_response_diff <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Desglossament
+  observeEvent(input$ai_explain_desglossament, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_desglossament")
+      plots <- llista_plots_desglossament()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Desglossa l'impacte en dues components: producció (ingredients) vs transport. Analitza quina part és més significativa i per quin motiu.",
+          n_cols = 2)
+      } else {
+        respuesta <- "No hi ha gràfics de desglossament disponibles."
+      }
+      removeNotification("ai_loading_desglossament")
+      output$ai_response_desglossament <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_desglossament")
+      output$ai_response_desglossament <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
+  # AI Explicar Contribució Total
+  observeEvent(input$ai_explain_contrib_total, {
+    tryCatch({
+      showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_contrib_total")
+      plots <- llista_plots_contrib_total()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Analitza la contribució total de cada animal al impacte ambiental. Identifica quins animals (per fase de creixement) són més o menys sostenibles.",
+          n_cols = 2)
+      } else {
+        respuesta <- "No hi ha gràfics de contribució total disponibles."
+      }
+      removeNotification("ai_loading_contrib_total")
+      output$ai_response_contrib_total <- renderUI({
+        HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
+      })
+    }, error = function(e) {
+      removeNotification("ai_loading_contrib_total")
+      output$ai_response_contrib_total <- renderUI({
+        div(style = "color: red; padding: 10px; border: 1px solid red; border-radius: 5px;",
+            HTML(paste("Error consultando IA:", e$message)))
+      })
+    })
+  })
+
 }

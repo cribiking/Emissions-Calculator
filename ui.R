@@ -147,6 +147,8 @@ ui <- dashboardPage(
                  actionButton("ai_explain_comp", "Explicar amb IA", icon = icon("robot"),
                               style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
                  br(),
+                 htmlOutput("ai_response_comp"),
+                 br(),
                    div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 5px solid #9b59b6;",
                        h4("Anàlisi de Formulació i Proporcions", style = "font-weight: bold; margin-left: 10px;"),
                        helpText(icon("lightbulb"), "Truc: Fes doble clic en la llegenda per aïllar un ingredient.")
@@ -178,6 +180,8 @@ ui <- dashboardPage(
                    actionButton("ai_explain_impactes", "Explicar amb IA", icon = icon("robot"),
                                 style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
                    br(),
+                   htmlOutput("ai_response_impactes"),
+                   br(),
                    div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 5px solid #27ae60;",
                        h4("Perfil Ambiental Comparatiu", style = "font-weight: bold; margin-left: 10px;"),
                        p("Visualització agregada dels indicadors seleccionats.", style = "margin-left: 10px; color: #7f8c8d;")
@@ -193,6 +197,8 @@ ui <- dashboardPage(
                                   style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
                    actionButton("ai_explain_origen", "Explicar amb IA", icon = icon("robot"),
                                 style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
+                   br(),
+                   htmlOutput("ai_response_origen"),
                    br(),
                    fluidRow(
                      column(6, 
@@ -217,6 +223,8 @@ ui <- dashboardPage(
                                   style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
                    actionButton("ai_explain_top", "Explicar amb IA", icon = icon("robot"),
                                 style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
+                   br(),
+                   htmlOutput("ai_response_top"),
                    br(),
                    # Selector d'impacte centrat
                    fluidRow(
@@ -264,6 +272,8 @@ ui <- dashboardPage(
                    actionButton("ai_explain_mapes", "Explicar amb IA", icon = icon("robot"),
                                 style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
                    br(),
+                   htmlOutput("ai_response_mapes"),
+                   br(),
                    # Nota informativa millorada en català
                    div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 8px; border-left: 6px solid #3498db; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
                        span(icon("info-circle"), style = "color: #3498db; margin-right: 10px; font-size: 18px;"),
@@ -298,6 +308,8 @@ ui <- dashboardPage(
                  actionButton("ai_explain_distribucio", "Explicar amb IA", icon = icon("robot"),
                               style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
                  br(),
+                 htmlOutput("ai_response_distribucio"),
+                 br(),
                    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #e74c3c;",
                        h4("Distribució d'emissions", style = "font-weight: bold; margin-left: 10px;")),
                    uiOutput("plot_box_ui")
@@ -310,6 +322,8 @@ ui <- dashboardPage(
                         style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
                  actionButton("ai_explain_diff", "Explicar amb IA", icon = icon("robot"),
                               style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
+                 br(),
+                 htmlOutput("ai_response_diff"),
                  br(),
                    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #e74c3c;",
                        h4("Comparativa Directa: Diferència d'Impacte (A - B)", style = "font-weight: bold; margin-left: 10px;")),
@@ -327,6 +341,8 @@ ui <- dashboardPage(
                         style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
                  actionButton("ai_explain_desglossament", "Explicar amb IA", icon = icon("robot"),
                               style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
+                 br(),
+                 htmlOutput("ai_response_desglossament"),
                  br(),
                    # --- BLOC INFORMATIU ---
                    div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #e67e22; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);",
@@ -353,6 +369,8 @@ ui <- dashboardPage(
                         style = "background-color: #2c3e50; color: white; border: none; padding: 10px 20px; font-weight: bold;"),
                  actionButton("ai_explain_contrib_total", "Explicar amb IA", icon = icon("robot"),
                               style = "background-color: #3498db; color: white; border: none; padding: 10px 20px; font-weight: bold; margin-left: 10px;"),
+                 br(),
+                 htmlOutput("ai_response_contrib_total"),
                  br(),
                    # Banner de títol amb estil coherent
                    div(style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 5px solid #3498db;",
