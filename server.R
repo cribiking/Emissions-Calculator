@@ -35,6 +35,7 @@ server <- function(input, output, session) {
     require(jsonlite, quietly = TRUE)
     require(base64enc, quietly = TRUE)
     require(markdown, quietly = TRUE)
+    require(ggpubr, quietly = TRUE)
   })
 
   # Cargar funciones de Gemini
@@ -1907,10 +1908,14 @@ server <- function(input, output, session) {
   observeEvent(input$ai_explain_comp, {
     tryCatch({
       showNotification("Consultant Gemini...", type = "message", duration = NULL, id = "ai_loading_comp")
-      plots <- list(plot_comp_A(), plot_comp_B())
-      respuesta <- preparar_grafics_per_gemini(plots,
-        context_adicional = "Concentra't en les diferències de composició entre les dues solucions.",
-        n_cols = 2)
+      plots <- llista_plots_composicio()
+      if (length(plots) > 0) {
+        respuesta <- preparar_grafics_per_gemini(plots,
+          context_adicional = "Concentra't en les diferències de composició entre les dues solucions.",
+          n_cols = 2)
+      } else {
+        respuesta <- "No hi ha gràfics disponibles per a composició. Assegura't que els dades s'han carregat correctament."
+      }
       removeNotification("ai_loading_comp")
       output$ai_response_comp <- renderUI({
         HTML(markdown::markdownToHTML(text = respuesta, fragment.only = TRUE))
