@@ -85,40 +85,110 @@ colors_paisos <- c(
 
 # [01.1] Carregar dades mediambientals base (sheet 1)
 carrega_dades_ambientals <- function(path) {
-  
+
   df <- read_excel(path) %>% clean_names()
+
+  # Identificar columnas de impacto que debería haber
+  impact_cols <- intersect(IMPACT_NAMES, names(df))
+
+  # VALIDACIÓN: Limpiar "not relevant" EN COLUMNAS DE IMPACTO
+  if(length(impact_cols) > 0) {
+    # Primero convertir a character para buscar "not relevant"
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~as.character(.)))
+
+    # Reemplazar "not relevant" con NA
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~case_when(
+                      . %in% c("not relevant", "Not relevant", "NOT RELEVANT", "not_relevant") ~ NA_character_,
+                      TRUE ~ .
+                    )))
+
+    # Convertir a numeric (NA's se mantienen como NA)
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~suppressWarnings(as.numeric(.))))
+  }
+
   # Acceptem que hi hagi múltiples files per mateix ingredient amb orígens alternatius.
   expect_cols <- c("ingredient", "group", "origen", "default_origen")
   # a més, busquem les columnes d'impacte (acceptem subset)
   impact_cols <- intersect(IMPACT_NAMES, names(df))
-  
+
   missing_cols <- setdiff(expect_cols, names(df))
   if(length(missing_cols) > 0) {
     stop("Falten columnes obligatòries a dades mediambientals: ", paste(missing_cols, collapse = ", "))
   }
-  df %>% select(all_of(c(expect_cols, impact_cols)))
+
+  # Seleccionar columnas finales
+  return(df %>% select(all_of(c(expect_cols, impact_cols))))
 }
 
 # [01.2] Carregar dades de dietes (ingredients utilitzats)
 carrega_dades_dietes <- function(path) {
-  df <- read_excel(path) %>% clean_names() %>%
-    mutate(prop = as.numeric(prop))
+  df <- read_excel(path) %>% clean_names()
+
+  # Convertir prop a character primero, luego limpiar "not relevant", luego a numeric
+  if("prop" %in% names(df)) {
+    df <- df %>%
+      mutate(prop = as.character(prop)) %>%
+      mutate(prop = case_when(
+        prop %in% c("not relevant", "Not relevant", "NOT RELEVANT", "not_relevant") ~ NA_character_,
+        TRUE ~ prop
+      )) %>%
+      mutate(prop = suppressWarnings(as.numeric(prop)))
+  }
+
   req_cols <- c("step", "ingredient", "diet", "prop")
   missing_cols <- setdiff(req_cols, names(df))
   if(length(missing_cols) > 0) {
     stop("Falten columnes a dades de dietes: ", paste(missing_cols, collapse = ", "))
   }
-  df
+
+  # IMPORTANT: Eliminar filas donde step, ingredient o diet son NA
+  df <- df %>%
+    filter(!is.na(step) & step != "") %>%
+    filter(!is.na(ingredient) & ingredient != "") %>%
+    filter(!is.na(diet) & diet != "")
+
+  return(df)
 }
 
 # [01.3] Carregar dades d'emissions de transport
 carrega_transport <- function(path) {
   df <- read_excel(path, sheet=1) %>% clean_names()
+
+  # Identificar columnas de impacto que debería haber
+  impact_cols <- intersect(IMPACT_NAMES, names(df))
+
+  # VALIDACIÓN: Limpiar "not relevant" EN COLUMNAS DE IMPACTO
+  if(length(impact_cols) > 0) {
+    # Primero convertir a character para buscar "not relevant"
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~as.character(.)))
+
+    # Reemplazar "not relevant" con NA
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~case_when(
+                      . %in% c("not relevant", "Not relevant", "NOT RELEVANT", "not_relevant") ~ NA_character_,
+                      TRUE ~ .
+                    )))
+
+    # Convertir a numeric
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~suppressWarnings(as.numeric(.))))
+  }
+
   # s'espera col 'origen' i idealment les mateixes categories d'impacte + lat/lon opcional
   if(!"origen" %in% names(df)) {
     stop("El fitxer de transport ha de contenir la columna 'origen'")
   }
-  
+
   return(df)
 }
 
@@ -129,50 +199,75 @@ carrega_dades_ambientals_totals <- function(path) {
   if(!"ingredient" %in% names(df)) {
     stop("Falta la columna obligatòria 'ingredient'")
   }
-  
+
   impact_cols <- intersect(TOTAL_IMPACT_NAMES, names(df))
+
+  # VALIDACIÓN: Limpiar "not relevant" EN COLUMNAS DE IMPACTO
+  if(length(impact_cols) > 0) {
+    # Primero convertir a character para buscar "not relevant"
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~as.character(.)))
+
+    # Reemplazar "not relevant" con NA
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~case_when(
+                      . %in% c("not relevant", "Not relevant", "NOT RELEVANT", "not_relevant") ~ NA_character_,
+                      TRUE ~ .
+                    )))
+
+    # Convertir a numeric
+    df <- df %>%
+      mutate(across(all_of(impact_cols),
+                    ~suppressWarnings(as.numeric(.))))
+  }
+
   missing_impacts <- setdiff(TOTAL_IMPACT_NAMES, names(df))
 
   if(length(missing_impacts) > 0) {
     message(paste("Falten columnes d'impacte:", paste(missing_impacts, collapse = ", ")))
   }
-  
-  df %>% select(all_of(c("ingredient", impact_cols)))
+
+  return(df %>% select(all_of(c("ingredient", impact_cols))))
 }
 
 # [01.5] Carregar factors d'emissions i ponderació (sheet 2)
 carrega_emissions <- function(path) {
   df <- read_excel(path, sheet=2) %>% clean_names()
-  
+
   expect_cols <- c("impact_category", "normalisation_factor_per_person", "final_weight_factor")
   missing_cols <- setdiff(expect_cols, names(df))
-  
+
   if(length(missing_cols) > 0){
     stop("Falten columnes obligatòries a la fulla 2 (emissions): ", paste(missing_cols, collapse = ", "))
   }
-  
+
   parse_decimal_comma <- function(x) {
     if(is.numeric(x)) return(x)
-    
+
     x_char <- as.character(x)
-    
+
+    # Handle "not relevant" strings
+    x_char[x_char %in% c("not relevant", "Not relevant", "NOT RELEVANT", "not_relevant")] <- NA
+
     x_char <- gsub(",", ".", x_char)
-    
+
     x_char <- trimws(x_char)
-    
+
     x_char[x_char == ""] <- NA
     x_char[x_char == "-"] <- NA
     x_char[x_char == "N/A"] <- NA
-    
+
     as.numeric(x_char)
   }
-  
+
   df <- df %>%
     mutate(
       normalisation_factor_per_person = parse_decimal_comma(normalisation_factor_per_person),
       final_weight_factor = parse_decimal_comma(final_weight_factor)
     )
-  
+
   return(df)
 }
 
@@ -278,66 +373,87 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
   #Seleccionem  tambe el pas de la dieta (Creixement, Engreix...)
   step_ing <- ingr_used_df %>%
     filter(step %in% step_sel) %>%
-    select(step, ingredient, diet ,prop)
-    
-  #View(step_ing)
+    select(step, ingredient, diet ,prop) %>%
+    # IMPORTANTE: Garantizar que ingredient y diet son character para join
+    mutate(ingredient = as.character(ingredient),
+           diet = as.character(diet),
+           prop = as.numeric(prop)) %>%
+    filter(!is.na(ingredient) & ingredient != "") %>%
+    filter(!is.na(diet) & diet != "")
+
+  # Si step_ing está vacío, retornar DF vacío estructurado
+  if(nrow(step_ing) == 0) {
+    # Crear un DF con las columnas correctas pero vacío
+    impact_cols <- intersect(IMPACT_NAMES, names(dades_env_df))
+    cols_finales <- c("ingredient", "diet", "prop", impact_cols)
+    empty_df <- as_tibble(setNames(data.frame(matrix(ncol = length(cols_finales), nrow = 0)), cols_finales))
+    return(empty_df)
+  }
   
   # 2. Obtener filas efectivas (Default o Overrides)
   #REVISIÓ: Sense overrides funciona be, amb overrides no ho se
   #effective_rows = Contè els ingredients de step, amb els seus corresponents origens i valors d'emissions
   # ingredient, origen, emissions
   if(is.null(overrides_df) || nrow(overrides_df) == 0) {
-    
+
   # Iteramos sobre cada fila de step_ing (que contiene la combinación ingrediente + dieta)
   effective_rows <- map_dfr(seq_len(nrow(step_ing)), function(i) {
-    
+
     # Extraemos el ingrediente y la dieta de la fila actual
-    ing_actual  <- step_ing$ingredient[i]
-    diet_actual <- step_ing$diet[i]
-    
+    ing_actual  <- as.character(step_ing$ingredient[i])
+    diet_actual <- as.character(step_ing$diet[i])
+
     # Buscamos los datos ambientales para ese ingrediente
     row <- get_default_row_for_ingredient(dades_env_df, ing_actual)
-    
+
     if(is.null(row)) {
       # Si no hay datos, creamos la fila vacía manteniendo la dieta
       tibble(
-        ingredient = ing_actual, 
-        diet = diet_actual, 
-        group = NA, 
+        ingredient = ing_actual,
+        diet = diet_actual,
+        group = NA,
         origen = NA
       )
-    } else { 
+    } else {
       # Si hay datos, añadimos la columna 'diet' a la fila encontrada
-      row %>% mutate(diet = diet_actual)
+      row %>% mutate(diet = as.character(diet_actual))
     }
   })
     
   } else { #si hi ha overrides
-    
+
     # 1. Obtenim la llista d'ingredients amb l'origen JA triat (el de override o el default)
     # Usarem la funció apply_overrides_to_env que hem arreglat abans
     env_preparat <- apply_overrides_to_env(dades_env_df, overrides_df)$df
-    
+
     # 2. Ara "mapegem" cada ingredient de la dieta amb la seva fila corresponent a env_preparat
     # Així mantenim la columna 'diet' correctament per a cada combinació
     effective_rows <- map_dfr(seq_len(nrow(step_ing)), function(i) {
-      
-      ing_actual  <- step_ing$ingredient[i]
-      diet_actual <- step_ing$diet[i]
-      
+
+      ing_actual  <- as.character(step_ing$ingredient[i])
+      diet_actual <- as.character(step_ing$diet[i])
+
       # Busquem la fila dins del nostre env ja filtrat/modificat
       row <- env_preparat %>% filter(ingredient == ing_actual)
-      
+
       if (nrow(row) == 0) {
         # Fallback per si un ingredient de la dieta no existeix a l'ambiental
         tibble(ingredient = ing_actual, diet = diet_actual, group = NA, origen = NA)
       } else {
         # IMPORTANT: usem [1,] per si de cas hi hagués duplicats, i afegim la dieta
-        row[1, ] %>% mutate(diet = diet_actual)
+        row[1, ] %>% mutate(diet = as.character(diet_actual))
       }
     })
   }
-  
+
+  # Validación: Si effective_rows está vacío, retornar DF vacío
+  if(nrow(effective_rows) == 0) {
+    impact_cols <- intersect(IMPACT_NAMES, names(dades_env_df))
+    cols_finales <- c("ingredient", "diet", "prop", impact_cols)
+    empty_df <- as_tibble(setNames(data.frame(matrix(ncol = length(cols_finales), nrow = 0)), cols_finales))
+    return(empty_df)
+  }
+
   #View(OVERRIDES())
   
   #necessito adquirir del fitxer transport, els origens que existeixen a effective rows, conjuntament amb les emissions
@@ -351,8 +467,16 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
   #View(origen_list_effective)
   
   #obtenim emissions necessàries
-  impact_cols_effective <- intersect( IMPACT_NAMES,names(transport_df))
-  
+  impact_cols_effective <- intersect(IMPACT_NAMES, names(transport_df))
+
+  # Si no hay columnas de impacto en transport, retornar DF vacío
+  if(length(impact_cols_effective) == 0) {
+    impact_cols <- intersect(IMPACT_NAMES, names(dades_env_df))
+    cols_finales <- c("ingredient", "diet", "prop", impact_cols)
+    empty_df <- as_tibble(setNames(data.frame(matrix(ncol = length(cols_finales), nrow = 0)), cols_finales))
+    return(empty_df)
+  }
+
   #obtenim les emisions del fitxer transport, per obtenir un df i poder sumar amb effective rows
   # 1. Filtramos transport_df para quedarnos solo con los ingredientes que nos interesan
   # 1. Aseguramos que el transporte tenga nombres distintos para que no se mezcle
@@ -365,13 +489,18 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
   #View(transporte_limpio)
   
   emissions_per_kg_ambTransport_df <- effective_rows %>%
-    left_join(transporte_limpio, by = "origen") %>%
-    mutate(
-      # Sumem original + transport i DIVIDIM PER 1000 per passar de Tona a Kg. Ja que els dos valor estan en TONES
-      across(all_of(impact_cols_effective), 
-             ~ (.x + coalesce(get(paste0("tr_", cur_column())), 0)) / 1000)
-    ) %>%
-    select(-starts_with("tr_"))
+    left_join(transporte_limpio, by = "origen")
+
+  # Si hay columnas de impacto, hacer el cálculo; si no, retornar como está
+  if(length(impact_cols_effective) > 0) {
+    emissions_per_kg_ambTransport_df <- emissions_per_kg_ambTransport_df %>%
+      mutate(
+        # Sumem original + transport i DIVIDIM PER 1000 per passar de Tona a Kg. Ja que els dos valor estan en TONES
+        across(all_of(impact_cols_effective),
+               ~ (.x + coalesce(get(paste0("tr_", cur_column())), 0)) / 1000)
+      ) %>%
+      select(-starts_with("tr_"))
+  }
     
   #View( emissions_per_kg_ambTransport_df)  
   
@@ -383,17 +512,24 @@ calcula_solucio_amb_transport <- function(ingr_used_df, dades_env_df, step_sel, 
     # 2. Unimos y multiplicamos
     final_df <-  emissions_per_kg_ambTransport_df %>%
       # Unimos por el "paquete único" de ingrediente y dieta
-      left_join(proporcions, by = c("ingredient", "diet")) %>%
-      mutate(across(all_of(impact_cols_effective), 
-                    # Multiplicamos la emisión total por la proporción (prop)
-                    # Usamos coalesce(prop, 0) por seguridad
-                    ~ .x * coalesce(prop, 0))) %>%
-      # Opcional: Si quieres mantener la columna 'prop' en el resultado final, 
+      left_join(proporcions, by = c("ingredient", "diet"))
+
+    # Solo multiplicar si hay columnas de impacto
+    if(length(impact_cols_effective) > 0) {
+      final_df <- final_df %>%
+        mutate(across(all_of(impact_cols_effective),
+                      # Multiplicamos la emisión total por la proporción (prop)
+                      # Usamos coalesce(prop, 0) por seguridad
+                      ~ .x * coalesce(prop, 0)))
+    }
+
+    final_df <- final_df %>%
+      # Opcional: Si quieres mantener la columna 'prop' en el resultado final,
       # no la elimines del select.
-      select(ingredient, diet, prop, all_of(impact_cols_effective), everything())
-    
-    #View(final_df)
-    
+      select(ingredient, diet, prop, all_of(impact_cols_effective), everything()) %>%
+      # IMPORTANTE: Eliminar filas donde diet es NA (fallos en el join)
+      filter(!is.na(diet) & diet != "")
+
     return(final_df)
 }
  #---
@@ -411,23 +547,28 @@ dades_consum_animals <- function(kg_table , final_df){
 
 # [04.2] Resum d'impacte per dieta (per kg)
 resum_per_dieta_from_joined <- function(joined_df) {
-  
-  
+
+  # Validación: Si joined_df es NULL o no es un dataframe, retornar vacío
+  if(is.null(joined_df) || !is.data.frame(joined_df) || nrow(joined_df) == 0) {
+    return(tibble(diet = character(), impacte = character(), valor = numeric()))
+  }
+
   # 2. Ens assegurem de seleccionar només les columnes que realment existeixen al DF
   target_cols <- intersect(IMPACT_NAMES, names(joined_df))
-  
+
   # Si no troba cap columna d'impacte, retornem un DF buit amb l'estructura correcta
   if(length(target_cols) == 0) {
     return(tibble(diet = character(), impacte = character(), valor = numeric()))
   }
-  
+
   # 3. Sumem els valors per cada dieta
   res <- joined_df %>%
+    filter(!is.na(diet) & diet != "") %>%  # Filtrar filas con diet inválido
     group_by(diet) %>%
     summarise(across(all_of(target_cols), sum, na.rm = TRUE), .groups = "drop")
-  
+
   #View(res)
-  
+
   # 5. EL PAS CLAU: Pivotar per crear la columna 'impacte'
   # Això converteix les columnes (climate_change, land_use...) en files
   res_long <- res %>%
@@ -447,24 +588,30 @@ resum_per_dieta_from_joined <- function(joined_df) {
 
 # [04.3] Resum d'impacte per dieta (per animal, segons kg consum)
 calcul_contribucio_total_per_animal <- function(joined_df , kg_table = NULL){
-  
+
+  # Validación: Si joined_df es NULL o no es un dataframe, retornar vacío
+  if(is.null(joined_df) || !is.data.frame(joined_df) || nrow(joined_df) == 0) {
+    return(tibble(diet = character(), impacte = character(), valor = numeric()))
+  }
+
   # 2. Ens assegurem de seleccionar només les columnes que realment existeixen al DF
   target_cols <- intersect(IMPACT_NAMES, names(joined_df))
-  
+
   # Si no troba cap columna d'impacte, retornem un DF buit amb l'estructura correcta
   if(length(target_cols) == 0) {
     return(tibble(diet = character(), impacte = character(), valor = numeric()))
   }
-  
+
   # 3. Sumem els valors per cada dieta
   res <- joined_df %>%
+    filter(!is.na(diet) & diet != "") %>%  # Filtrar filas con diet inválido
     group_by(diet) %>%
     summarise(across(all_of(target_cols), sum, na.rm = TRUE), .groups = "drop")
-  
+
   #View(res)
-  
+
   kg_tbl <- kg_table %>% distinct(diet, kg_consum)
-  res <- res %>% 
+  res <- res %>%
     left_join(kg_tbl, by = "diet") %>%
     mutate(across(all_of(target_cols), ~ .x * coalesce(kg_consum, 1))) %>%
     select(-kg_consum)
@@ -493,10 +640,17 @@ calcul_contribucio_total_per_animal <- function(joined_df , kg_table = NULL){
 # Contrib per ingredient (per dieta) ja disponible a joined_df
 # [04.4] Contribució per ingredient a partir de dades joined
 contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE, kg_table = NULL) {
-  
+
+  # Validación: Si joined_df es NULL o no es un dataframe, retornar vacío
+  if(is.null(joined_df) || !is.data.frame(joined_df) || nrow(joined_df) == 0) {
+    return(tibble(diet = character(), ingredient = character(), impacte = character(), prop = numeric(), valor = numeric()))
+  }
+
   contrib_cols <- names(joined_df)[str_detect(names(joined_df), "^contrib_")]
   df <- joined_df %>%
+    filter(!is.na(diet) & diet != "") %>%  # Filtrar filas con diet inválido
     select(diet, ingredient, all_of(contrib_cols), prop)
+
   if(per_animal) {
     kg_tbl <- kg_table %>% distinct(diet, kg_consum)
     df <- df %>% left_join(kg_tbl, by = "diet") %>%
@@ -516,15 +670,27 @@ contribucio_per_ingredient_from_joined <- function(joined_df, per_animal = FALSE
 
 # [05.1] Gràfic composició (ggplot)
 plot_composicio_gg <- function(joined_df, ordre_dietes = NULL) {
+  # Validación de entrada
+  if(is.null(joined_df) || nrow(joined_df) == 0) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No data available", size = 5))
+  }
+
   # 1. Agrupamos por dieta e ingrediente para sumar las proporciones
-  df <- joined_df %>% 
-    group_by(diet, ingredient) %>% 
+  df <- joined_df %>%
+    # Filtrar filas donde diet o ingredient son NA
+    filter(!is.na(diet) & !is.na(ingredient)) %>%
+    group_by(diet, ingredient) %>%
     summarise(prop = sum(prop, na.rm = TRUE), .groups = "drop")
-  
+
+  # Si después de agrupar está vacío, return placeholder
+  if(nrow(df) == 0) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No data after grouping", size = 5))
+  }
+
   # 2. Aplicamos el orden de las dietas si se proporciona
-  if(!is.null(ordre_dietes)) 
+  if(!is.null(ordre_dietes))
     df <- df %>% mutate(diet = factor(diet, levels = ordre_dietes))
-  
+
   # 3. Creamos el gráfico usando 'ingredient' para el color (fill)
   ggplot(df, aes(x = diet, y = prop, fill = ingredient)) +
     geom_col(color = "white", linewidth = 0.1, width = 0.5) + # Línea fina para separar bloques
@@ -534,7 +700,7 @@ plot_composicio_gg <- function(joined_df, ordre_dietes = NULL) {
       limits = c(0, 1)
     ) +
     labs(
-      title = "Composició de les dietes (per ingredient)",
+      title = "Composicio de les dietes (per ingredient)",
       y = "Proporció (%)",
       x = "Dieta",
       fill = "Ingredients Utilitzats"
@@ -548,11 +714,16 @@ plot_composicio_gg <- function(joined_df, ordre_dietes = NULL) {
       axis.title = element_text(size = 10),
       plot.title = element_text(size = 12)
     )
-  
+
 }
 
 # [05.2] Gràfic composició (plotly)
 plot_composicio <- function(joined_df, ordre_dietes = NULL) {
+  # Validación: Si joined_df es NULL, retornar un gráfico vacío
+  if(is.null(joined_df) || !is.data.frame(joined_df) || nrow(joined_df) == 0) {
+    return(ggplotly(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No data available", size = 5)))
+  }
+
   p <- plot_composicio_gg(joined_df, ordre_dietes)
   # El tooltip mostrará el ingrediente y el valor de 'prop' formateado
   ggplotly(p, tooltip = c("fill", "y"))
@@ -567,9 +738,15 @@ plot_composicio <- function(joined_df, ordre_dietes = NULL) {
 
 # [05.3] Agregació de contribució per origen
 contribucio_per_origen_from_joined <- function(joined_df) {
-  
+
+  # Validación: Si joined_df es NULL o no es un dataframe, retornar vacío
+  if(is.null(joined_df) || !is.data.frame(joined_df) || nrow(joined_df) == 0) {
+    return(tibble(diet = character(), origen = character(), impacte = character(), valor = numeric()))
+  }
+
   # 1. Agrupem per dieta i origen
   res <- joined_df %>%
+    filter(!is.na(diet) & diet != "") %>%  # Filtrar filas con diet inválido
     group_by(diet, origen) %>%
     summarise(across(all_of(intersect(IMPACT_NAMES, names(.))), sum, na.rm = TRUE), .groups = "drop")
   
@@ -1187,3 +1364,6 @@ box_config <- list(
 # Verificacio ingredients             | comprovar_ingredients_faltants
 # Environmental Footprint             | fn_verify_impacts, fn_verify_ingredients,
 #                                     | fn_calcul_contribucio_totes_dietes
+# Integracio Gemini                   | gemini_api_call, preparar_grafics_per_gemini,
+#                                     | gemini_explicar_grafic
+# Nota: gemini_functions.R se carga en server.R para evitar ciclos de dependencias
