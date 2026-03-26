@@ -351,6 +351,70 @@ server <- function(input, output, session) {
   
   #---
  
+  ############################################################
+  # 01.D GRÀFICS DE COMPOSICIÓ PER FASE (SIMPLES)
+  ############################################################
+  
+  # Obtenir fases disponibles
+  fases_disponibles <- reactive({
+    req(dades_dietes())
+    get_fases_disponibles(dades_dietes())
+  })
+  
+  # Renderitzar gràfic ENTRADA
+  output$plot_fase_entrada <- renderPlotly({
+    req(dades_dietes())
+    plot_composicio_per_fase_simple_plotly(dades_dietes(), "ENTRADA")
+  })
+  
+  # Renderitzar gràfic CREIXEMENT
+  output$plot_fase_creixement <- renderPlotly({
+    req(dades_dietes())
+    plot_composicio_per_fase_simple_plotly(dades_dietes(), "CREIXEMENT")
+  })
+  
+  # Renderitzar gràfic TRANSICIÓ (o ENGREIX segons el teu fitxer)
+  output$plot_fase_transicio <- renderPlotly({
+    req(dades_dietes())
+    # Canvia "TRANSICIO" pel nom exacte que tinguis al fitxer
+    plot_composicio_per_fase_simple_plotly(dades_dietes(), "ENGREIX")
+  })
+  
+  # Renderitzar gràfic ACABAT
+  output$plot_fase_acabat <- renderPlotly({
+    req(dades_dietes())
+    plot_composicio_per_fase_simple_plotly(dades_dietes(), "ACABAT")
+  })
+  
+  # Llista per exportar
+  llista_plots_fases <- reactive({
+    req(dades_dietes())
+    
+    fases <- c("ENTRADA", "CREIXEMENT", "ENGREIX", "ACABAT")
+    
+    lapply(fases, function(fase) {
+      plot_composicio_per_fase_simple(dades_dietes(), fase)
+    })
+  })
+  
+  # Descàrrega PNG
+  output$download_fases <- downloadHandler(
+    filename = function() {
+      paste0("composicio_per_fase_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      exportar_llista_grafics(
+        llista_plots = llista_plots_fases(),
+        file_path = file,
+        n_cols = 2,
+        base_height = 6,
+        base_width = 14
+      )
+    }
+  )
+  
+  #---
+  
   ############################## 02. PESTANYA: VISIÓ GENERAL ###########################################
   
   #Creació valueBox per visualitzar dades a visio general
@@ -1566,7 +1630,7 @@ server <- function(input, output, session) {
       hovertemplate = paste(
         "<b>%{y}</b><br>",
         "Fase: %{data.name}<br>",
-        "Valor: %{x:.6f} Pt<extra></extra>"
+        "Valor: %{x:.2f} Pt<extra></extra>"
       )
     ) %>%
       layout(
@@ -1625,7 +1689,7 @@ server <- function(input, output, session) {
     
     datatable(
       taula %>%
-        mutate(across(where(is.numeric), ~ format_num_pt(.x, 6))),
+        mutate(across(where(is.numeric), ~ format_num_pt(.x, 2))),
       extensions = 'Buttons',
       options = list(
         dom = 'Bfrtip',
@@ -1678,13 +1742,13 @@ server <- function(input, output, session) {
         column(4,
                div(style = "background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center;",
                    h5(style = "margin: 0; color: #1565c0;", paste("Solució A (Step", input$stepA, ")")),
-                   h3(style = "margin: 10px 0; color: #0d47a1;", format_num_pt(total_A, 6))
+                   h3(style = "margin: 10px 0; color: #0d47a1;", format_num_pt(total_A, 2))
                )
         ),
         column(4,
                div(style = "background: #fff3e0; padding: 15px; border-radius: 8px; text-align: center;",
                    h5(style = "margin: 0; color: #e65100;", paste("Solució B (Step", input$stepB, ")")),
-                   h3(style = "margin: 10px 0; color: #bf360c;", format_num_pt(total_B, 6))
+                   h3(style = "margin: 10px 0; color: #bf360c;", format_num_pt(total_B, 2))
                )
         ),
         column(4,
@@ -1724,7 +1788,7 @@ server <- function(input, output, session) {
       res$resum_per_step %>%
         mutate(
           step = as.integer(step),
-          petjada_total_step = format_num_pt(petjada_total_step, 6)
+          petjada_total_step = format_num_pt(petjada_total_step, 2)
         ) %>%
         arrange(step),
       colnames = c("Step", "Petjada Total"),
@@ -1757,7 +1821,7 @@ server <- function(input, output, session) {
       arrange(step) %>%
       mutate(
         step = as.integer(step),
-        across(-step, ~ format_num_pt(.x, 6)))
+        across(-step, ~ format_num_pt(.x, 2)))
     
     datatable(
       taula_pivot,
@@ -1785,7 +1849,7 @@ server <- function(input, output, session) {
       res$resum_per_dieta_impacte %>%
         mutate(
           step = as.integer(step),
-          total_ponderada = format_num_pt(total_ponderada, 6)
+          total_ponderada = format_num_pt(total_ponderada, 2)
         ) %>%
         arrange(step, diet, impacte),
       colnames = c("Step", "Fase", "Impacte", "Total Ponderat"),
@@ -1831,7 +1895,7 @@ server <- function(input, output, session) {
       hovertemplate = paste(
         "<b>Step %{y}</b><br>",
         "Fase: %{data.name}<br>",
-        "Valor: %{x:.6f} Pt<extra></extra>"
+        "Valor: %{x:.2f} Pt<extra></extra>"
       )
     ) %>%
       layout(
