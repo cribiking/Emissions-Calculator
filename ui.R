@@ -168,7 +168,52 @@ ui <- dashboardPage(
                                 h5("Estructura Solució B", style = "font-weight: bold; color: #2c3e50;"),
                                 plotlyOutput("plot_comp_B", height = "600px"))
                      )
+                   ),
+                 
+                 fluidRow(
+                   box(
+                     title = tagList(icon("info-circle"), "Composició d'ingredients per fase"),
+                     width = 12,
+                     status = "info",
+                     solidHeader = TRUE,
+                     p("Cada gràfic mostra la distribució d'ingredients per cada step dins d'una fase de creixement."),
+                     downloadButton("download_fases", "Descarregar tots els gràfics", class = "btn-success")
                    )
+                 ),
+                 
+                 fluidRow(
+                   box(
+                     title = "ENTRADA",
+                     width = 6,
+                     solidHeader = TRUE,
+                     status = "success",
+                     plotlyOutput("plot_fase_entrada", height = "500px")
+                   ),
+                   box(
+                     title = "CREIXEMENT",
+                     width = 6,
+                     solidHeader = TRUE,
+                     status = "warning",
+                     plotlyOutput("plot_fase_creixement", height = "500px")
+                   )
+                 ),
+                 
+                 fluidRow(
+                   box(
+                     title = "ENGREIX",
+                     width = 6,
+                     solidHeader = TRUE,
+                     status = "info",
+                     plotlyOutput("plot_fase_transicio", height = "500px")
+                   ),
+                   box(
+                     title = "ACABAT",
+                     width = 6,
+                     solidHeader = TRUE,
+                     status = "danger",
+                     plotlyOutput("plot_fase_acabat", height = "500px")
+                   )
+                 )
           ),
           
           # --- Pestanya Impactes per dieta ---
