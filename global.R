@@ -895,6 +895,79 @@ plot_topN_ingredients_per_dieta <- function(joined_df, diet_sel, impacte_sel = "
   ggplotly(p) %>% 
     layout(margin = list(l = 150, r = 50, b = 50, t = 50)) 
 }
+
+############################################################
+# 05.E GRÀFICS SIMPLES DE COMPOSICIÓ PER FASE (DIRECTE)
+############################################################
+
+# Gràfic simple que mostra la composició d'ingredients per cada step
+# Input: dataframe amb columnes step, ingredient, diet, prop
+
+plot_composicio_per_fase_simple <- function(df_dietes, fase_nom = "ENTRADA") {
+  
+  df_fase <- df_dietes %>%
+    filter(diet == fase_nom) %>%
+    filter(!is.na(step) & !is.na(ingredient) & !is.na(prop))
+  
+  if(nrow(df_fase) == 0) {
+    return(ggplot() + 
+             annotate("text", x = 0.5, y = 0.5, 
+                      label = paste("No hi ha dades per a", fase_nom), 
+                      size = 5))
+  }
+  
+  df_fase <- df_fase %>%
+    mutate(
+      step_num = as.numeric(step),
+      step = factor(step, levels = sort(unique(as.numeric(step))))
+    ) %>%
+    arrange(step_num)
+  
+  p <- ggplot(df_fase, aes(x = step, y = prop, fill = ingredient)) +
+    geom_col(color = "white", linewidth = 0.1, width = 0.8) +
+    # SENSE coord_flip() = barres verticals
+    scale_y_continuous(
+      breaks = seq(0, 1, by = 0.25),
+      limits = c(0, 1.05),
+      labels = scales::percent_format(accuracy = 1)
+    ) +
+    labs(
+      title = paste("Composició per Step -", fase_nom),
+      subtitle = paste("Total steps:", length(unique(df_fase$step))),
+      y = "Proporció (%)",
+      x = "Step",
+      fill = "Ingredient"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "right",
+      legend.title = element_text(size = 10, face = "bold"),
+      legend.text = element_text(size = 7),
+      axis.text.x = element_text(size = 9, face = "bold", angle = 45, hjust = 1),
+      axis.text.y = element_text(size = 8),
+      axis.title = element_text(size = 10),
+      plot.title = element_text(size = 14, face = "bold"),
+      plot.subtitle = element_text(size = 10, color = "gray40")
+    )
+  
+  return(p)
+}
+
+# Versió interactiva amb plotly
+plot_composicio_per_fase_simple_plotly <- function(df_dietes, fase_nom = "ENTRADA") {
+  p <- plot_composicio_per_fase_simple(df_dietes, fase_nom)
+  ggplotly(p, tooltip = c("fill", "y")) %>%
+    layout(
+      margin = list(l = 80, r = 200, b = 50, t = 80),
+      legend = list(orientation = "v", x = 1.02, y = 0.5, font = list(size = 10))
+    )
+}
+
+# Funció per obtenir les fases disponibles al fitxer
+get_fases_disponibles <- function(df_dietes) {
+  unique(df_dietes$diet)
+}
+
 ############################################################
 # 06. MAPA D'ORÍGENS
 ############################################################
