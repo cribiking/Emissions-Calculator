@@ -3,88 +3,33 @@
 # Funciones para enviar imágenes a Gemini y obtener explicaciones
 ################################################################################
 
-# Localizar archivo .env de forma robusta
-find_env_file <- function() {
-  candidates <- c()
-
-  # Permitir override por variable de entorno
-  env_override <- Sys.getenv("GEMINI_ENV_FILE", unset = "")
-  if (nzchar(env_override)) {
-    candidates <- c(candidates, env_override)
-  }
-
-  # Rutas comunes
-  candidates <- c(candidates, ".env", file.path(getwd(), ".env"))
-
-  # Intentar detectar ruta del script actual cuando se carga con source()
-  frames <- sys.frames()
-  if (length(frames) > 0) {
-    for (i in rev(seq_along(frames))) {
-      ofile <- frames[[i]]$ofile
-      if (!is.null(ofile) && nzchar(ofile)) {
-        candidates <- c(candidates, file.path(dirname(normalizePath(ofile, winslash = "/", mustWork = FALSE)), ".env"))
-        break
-      }
-    }
-  }
-
-  candidates <- unique(candidates)
-  for (path in candidates) {
-    if (nzchar(path) && file.exists(path)) {
-      return(path)
-    }
-  }
-
-  return(NULL)
-}
-
 # Cargar variables de entorno desde .env
-env_path <- find_env_file()
-if (!is.null(env_path)) {
+if (file.exists(".env")) {
   tryCatch({
     # Intentar usar dotenv si está instalado
     if (requireNamespace("dotenv", quietly = TRUE)) {
-      dotenv::load_dot_env(env_path)
-      cat("✅ Variables de entorno cargadas con dotenv desde:", env_path, "\n")
+      dotenv::load_dot_env(".env")
+      cat("✅ Variables de entorno cargadas con dotenv\n")
     } else {
       # Fallback: cargar manualmente si dotenv no está instalado
-      env_file <- readLines(env_path)
+      env_file <- readLines(".env")
       env_file <- env_file[!grepl("^#|^$", env_file)]
 
       for (line in env_file) {
-        equal_pos <- regexpr("=", line, fixed = TRUE)
-        if (equal_pos > 0) {
-          var_name <- trimws(substr(line, 1, equal_pos - 1))
-          var_value <- trimws(substr(line, equal_pos + 1, nchar(line)))
-
-          # Quitar comillas envolventes si existen
-          var_value <- gsub('^"|"$', "", var_value)
-          var_value <- gsub("^'|'$", "", var_value)
-
+        parts <- strsplit(line, "=")[[1]]
+        if (length(parts) == 2) {
+          var_name <- trimws(parts[1])
+          var_value <- trimws(parts[2])
           do.call(Sys.setenv, setNames(list(var_value), var_name))
         }
       }
-      cat("✅ Variables de entorno cargadas manualmente desde:", env_path, "\n")
+      cat("✅ Variables de entorno cargadas manualmente desde .env\n")
     }
   }, error = function(e) {
     cat("⚠️ Error cargando .env:", e$message, "\n")
   })
 } else {
-  cat("⚠️ Archivo .env no encontrado. Configura GEMINI_API_KEY en el entorno.\n")
-}
-
-# Obtener API key desde parámetro o entorno
-resolve_gemini_api_key <- function(api_key = NULL) {
-  if (!is.null(api_key) && nzchar(trimws(api_key))) {
-    return(trimws(api_key))
-  }
-
-  env_key <- Sys.getenv("GEMINI_API_KEY", unset = "")
-  if (nzchar(trimws(env_key))) {
-    return(trimws(env_key))
-  }
-
-  return("")
+  cat("⚠️ Archivo .env no encontrado. Usando valores por defecto.\n")
 }
 
 # Librerías necesarias - Usar namespaces explícitos para evitar conflictos
@@ -101,11 +46,13 @@ cat("✅ gemini_functions.R cargado - Funciones disponibles\n")
 
 gemini_list_models <- function(api_key = NULL) {
   # Obtener API key
-  api_key <- resolve_gemini_api_key(api_key)
-
-  if (!nzchar(api_key)) {
-    cat("❌ Falta GEMINI_API_KEY. Define la variable de entorno o pasa api_key.\n")
-    return(NULL)
+  if (is.null(api_key) || api_key == "") {
+    env_key <- Sys.getenv("GEMINI_API_KEY", unset = "")
+    if (env_key != "") {
+      api_key <- env_key
+    } else {
+      api_key <- "AIzaSyBX7n_r_DkiZbkfaPzYoxG0370SeVi1KOI"
+    }
   }
 
   resultado <- tryCatch({
@@ -154,16 +101,19 @@ gemini_api_call <- function(image_path, prompt_text, api_key = NULL, model_name 
   # Obtener API key en este orden de prioridad:
   # 1. Si se proporciona como parámetro
   # 2. Desde variable de entorno GEMINI_API_KEY
-  # 3. Error si no hay clave
+  # 3. Valor por defecto de fallback
 
-  has_param_key <- !is.null(api_key) && nzchar(trimws(api_key))
-  api_key <- resolve_gemini_api_key(api_key)
-  if (!has_param_key && nzchar(api_key)) {
-    cat("✅ API key cargada desde variables de entorno\n")
-  }
-
-  if (!nzchar(api_key)) {
-    return("Error: Falta GEMINI_API_KEY. Configura la variable de entorno o pasa api_key.")
+  if (is.null(api_key) || api_key == "") {
+    # Intentar desde variable de entorno
+    env_key <- Sys.getenv("GEMINI_API_KEY", unset = "")
+    if (env_key != "") {
+      api_key <- env_key
+      cat("✅ API key cargada desde variables de entorno\n")
+    } else {
+      # Fallback a valor por defecto
+      api_key <- "AIzaSyBX7n_r_DkiZbkfaPzYoxG0370SeVi1KOI"
+      cat("⚠️ Usando API key por defecto (considera usar .env)\n")
+    }
   }
 
   # Validar que el prompt_text no esté vacío
