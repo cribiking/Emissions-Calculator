@@ -29,7 +29,7 @@ if (file.exists(".env")) {
     cat("⚠️ Error cargando .env:", e$message, "\n")
   })
 } else {
-  cat("⚠️ Archivo .env no encontrado. Usando valores por defecto.\n")
+  cat("⚠️ Archivo .env no encontrado. Configura GEMINI_API_KEY en el entorno.\n")
 }
 
 # Librerías necesarias - Usar namespaces explícitos para evitar conflictos
@@ -50,9 +50,12 @@ gemini_list_models <- function(api_key = NULL) {
     env_key <- Sys.getenv("GEMINI_API_KEY", unset = "")
     if (env_key != "") {
       api_key <- env_key
-    } else {
-      api_key <- "GEMINI_API_KEY_REMOVED"
     }
+  }
+
+  if (is.null(api_key) || api_key == "") {
+    cat("❌ Falta GEMINI_API_KEY. Define la variable de entorno o pasa api_key.\n")
+    return(NULL)
   }
 
   resultado <- tryCatch({
@@ -101,7 +104,7 @@ gemini_api_call <- function(image_path, prompt_text, api_key = NULL, model_name 
   # Obtener API key en este orden de prioridad:
   # 1. Si se proporciona como parámetro
   # 2. Desde variable de entorno GEMINI_API_KEY
-  # 3. Valor por defecto de fallback
+  # 3. Error si no hay clave
 
   if (is.null(api_key) || api_key == "") {
     # Intentar desde variable de entorno
@@ -109,11 +112,11 @@ gemini_api_call <- function(image_path, prompt_text, api_key = NULL, model_name 
     if (env_key != "") {
       api_key <- env_key
       cat("✅ API key cargada desde variables de entorno\n")
-    } else {
-      # Fallback a valor por defecto
-      api_key <- "GEMINI_API_KEY_REMOVED"
-      cat("⚠️ Usando API key por defecto (considera usar .env)\n")
     }
+  }
+
+  if (is.null(api_key) || api_key == "") {
+    return("Error: Falta GEMINI_API_KEY. Configura la variable de entorno o pasa api_key.")
   }
 
   # Validar que el prompt_text no esté vacío
